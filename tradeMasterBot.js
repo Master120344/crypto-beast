@@ -29,8 +29,15 @@ const FLASH_LOAN_ABI = [
     }
 ];
 
+// Custom network configuration to disable ENS on BNB Chain
+const bscNetwork = {
+    chainId: 56,
+    name: 'bsc',
+    ensAddress: null // Explicitly disable ENS
+};
+
 // Initialize provider and wallet for BNB Chain transactions
-const provider = new ethers.JsonRpcProvider(PROVIDER_URL_BSC);
+const provider = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, bscNetwork, { staticNetwork: true });
 const wallet = new ethers.Wallet(process.env.WALLET_PRIVATE_KEY, provider);
 const flashLoanContract = new ethers.Contract(FLASH_LOAN_CONTRACT_ADDRESS, FLASH_LOAN_ABI, wallet);
 
@@ -59,6 +66,12 @@ function setupPriceSentryWebSocket() {
 
     priceSentryWsClient.on('message', async (message) => {
         try {
+            // Ensure the client is fully open before processing messages
+            if (priceSentryWsClient.readyState !== WebSocket.OPEN) {
+                log('Received message but client is not fully open, ignoring...');
+                return;
+            }
+
             log(`Received PriceSentryBot WebSocket message: ${message}`);
             const data = JSON.parse(message.toString());
             if (data.type === 'price') {
@@ -99,6 +112,12 @@ function setupSpreadEagleWebSocket() {
 
     spreadEagleWsClient.on('message', async (message) => {
         try {
+            // Ensure the client is fully open before processing messages
+            if (spreadEagleWsClient.readyState !== WebSocket.OPEN) {
+                log('Received SpreadEagleBot message but client is not fully open, ignoring...');
+                return;
+            }
+
             log(`Received SpreadEagleBot WebSocket message: ${message}`);
             const data = JSON.parse(message.toString());
             if (data.type === 'arbitrage') {

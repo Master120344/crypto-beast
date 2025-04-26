@@ -51,9 +51,16 @@ const PAIR_ABI = [
     }
 ];
 
-// Initialize providers with fallback
-let providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, 56);
-let fallbackProviderBSC = new ethers.JsonRpcProvider(FALLBACK_PROVIDER_URL_BSC, 56);
+// Custom network configuration to disable ENS on BNB Chain
+const bscNetwork = {
+    chainId: 56,
+    name: 'bsc',
+    ensAddress: null // Explicitly disable ENS
+};
+
+// Initialize providers with fallback, using custom network and staticNetwork option
+let providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, bscNetwork, { staticNetwork: true });
+let fallbackProviderBSC = new ethers.JsonRpcProvider(FALLBACK_PROVIDER_URL_BSC, bscNetwork, { staticNetwork: true });
 let pairContract = new ethers.Contract(WBNB_BTCB_PAIR, PAIR_ABI, providerBSC);
 let currentProvider = 'primary'; // Track which provider is in use
 
@@ -126,7 +133,7 @@ async function fetchPancakeSwapPriceFromContract(attempt = 1) {
 
         // Reset provider to primary if using fallback
         if (currentProvider === 'fallback') {
-            providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, 56);
+            providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, bscNetwork, { staticNetwork: true });
             pairContract = new ethers.Contract(WBNB_BTCB_PAIR, PAIR_ABI, providerBSC);
             currentProvider = 'primary';
             log('Switched back to primary BNB Chain provider');
