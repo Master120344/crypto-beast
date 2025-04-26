@@ -32,7 +32,7 @@ const FLASH_LOAN_ABI = [
 ];
 
 // Initialize Web3 provider
-const web3 = new Web3(new Web3.providers.HttpProvider(PROVIDER_URL_BSC));
+const web3 = new Web3(PROVIDER_URL_BSC);
 const walletPrivateKey = process.env.WALLET_PRIVATE_KEY;
 const account = web3.eth.accounts.privateKeyToAccount(walletPrivateKey);
 web3.eth.accounts.wallet.add(account);

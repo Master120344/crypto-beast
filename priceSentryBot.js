@@ -54,8 +54,8 @@ const PAIR_ABI = [
 ];
 
 // Initialize Web3 providers with fallback
-let providerBSC = new Web3(new Web3.providers.HttpProvider(PROVIDER_URL_BSC));
-let fallbackProviderBSC = new Web3(new Web3.providers.HttpProvider(FALLBACK_PROVIDER_URL_BSC));
+let providerBSC = new Web3(PROVIDER_URL_BSC);
+let fallbackProviderBSC = new Web3(FALLBACK_PROVIDER_URL_BSC);
 let pairContract = new providerBSC.eth.Contract(PAIR_ABI, WBNB_BTCB_PAIR);
 let currentProvider = 'primary'; // Track which provider is in use
 
@@ -128,7 +128,7 @@ async function fetchPancakeSwapPriceFromContract(attempt = 1) {
 
         // Reset provider to primary if using fallback
         if (currentProvider === 'fallback') {
-            providerBSC = new Web3(new Web3.providers.HttpProvider(PROVIDER_URL_BSC));
+            providerBSC = new Web3(PROVIDER_URL_BSC);
             pairContract = new providerBSC.eth.Contract(PAIR_ABI, WBNB_BTCB_PAIR);
             currentProvider = 'primary';
             log('Switched back to primary BNB Chain provider');
