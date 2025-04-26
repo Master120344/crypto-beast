@@ -10,6 +10,7 @@ const WebSocket = require('ws');
 const WEBSOCKET_SERVER_URL = 'ws://localhost:8081'; // WebSocket server hosted by PriceSentryBot
 const DECOY_ORDER_INTERVAL = 10000; // Place decoy orders every 10 seconds
 const DECOY_PRICE_OFFSET = 0.01; // 1% offset from market price for decoy orders
+const INITIAL_CHECK_DELAY = 5000; // Delay initial price check by 5 seconds to ensure WebSocket messages are received
 
 // Price tracking for Kraken (received from PriceSentryBot)
 let krakenPrice = 0;
@@ -99,8 +100,11 @@ function startDecoyKrakenBot() {
     log('DecoyKrakenBot starting...');
     log('Waiting for price data from PriceSentryBot to place decoy orders on Kraken...');
 
-    // Place decoy orders at regular intervals
-    setInterval(placeDecoyOrders, DECOY_ORDER_INTERVAL);
+    // Delay the initial price check to ensure WebSocket messages are received
+    setTimeout(() => {
+        // Place decoy orders at regular intervals
+        setInterval(placeDecoyOrders, DECOY_ORDER_INTERVAL);
+    }, INITIAL_CHECK_DELAY);
 }
 
 // Execute the bot

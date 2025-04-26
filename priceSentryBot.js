@@ -15,24 +15,10 @@ const FALLBACK_PROVIDER_URL_BSC = 'https://bsc-dataseed1.defibit.io/'; // Fallba
 const WEBSOCKET_PORT = 8081; // Local WebSocket server port for broadcasting prices
 const PRICE_FETCH_INTERVAL = 5000; // Fetch prices every 5 seconds
 
-// PancakeSwap Factory and Pair (BNB Chain)
-const PANCAKESWAP_FACTORY = '0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73'; // PancakeSwap Factory V2
+// PancakeSwap Pair (BNB Chain) - Hardcoded WBNB/BTCB pair address
 const WBNB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'; // Wrapped BNB
 const BTCB = '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9'; // BTCB (Binance-Peg Bitcoin Token)
-
-// PancakeSwap Factory ABI (simplified)
-const FACTORY_ABI = [
-    {
-        "constant": true,
-        "inputs": [
-            { "name": "tokenA", "type": "address" },
-            { "name": "tokenB", "type": "address" }
-        ],
-        "name": "getPair",
-        "outputs": [{ "name": "", "type": "address" }],
-        "type": "function"
-    }
-];
+const WBNB_BTCB_PAIR = '0x61EB789d75A98CAa37698ff9355F7B1d6eCEf95'; // Hardcoded WBNB/BTCB pair address
 
 // PancakeSwap Pair ABI (simplified)
 const PAIR_ABI = [
@@ -66,8 +52,7 @@ const PAIR_ABI = [
 // Initialize providers with fallback
 let providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, 56);
 let fallbackProviderBSC = new ethers.JsonRpcProvider(FALLBACK_PROVIDER_URL_BSC, 56);
-let pancakeSwapFactory = new ethers.Contract(PANCAKESWAP_FACTORY, FACTORY_ABI, providerBSC);
-let pairContract;
+let pairContract = new ethers.Contract(WBNB_BTCB_PAIR, PAIR_ABI, providerBSC);
 
 // Prices for exchanges (Kraken, PancakeSwap)
 let prices = {
@@ -106,21 +91,12 @@ function broadcastMonitoring(exchange, data) {
     });
 }
 
-// Fetch PancakeSwap BTC/BNB price with fallback provider
-async function fetchPancakeSwapPrice(attempt = 1) {
+// Fetch PancakeSwap BTC/BNB price via contract
+async function fetchPancakeSwapPriceFromContract(attempt = 1) {
     try {
-        log(`Fetching PancakeSwap price (attempt ${attempt})...`);
-        if (!pairContract) {
-            log(`Calling getPair(${WBNB}, ${BTCB}) on factory contract...`);
-            const pairAddress = await pancakeSwapFactory.getPair(WBNB, BTCB);
-            log(`Fetched pair address: ${pairAddress}`);
-            if (pairAddress === ethers.ZeroAddress) {
-                throw new Error('PancakeSwap pair does not exist for WBNB/BTCB');
-            }
-            pairContract = new ethers.Contract(pairAddress, PAIR_ABI, providerBSC);
-        }
+        log(`Fetching PancakeSwap price via contract (attempt ${attempt})...`);
 
-        // Sequential calls to avoid potential issues with Promise.all
+        // Sequential calls to avoid potential issues
         log('Fetching token0...');
         const token0 = await pairContract.token0();
         log('Fetching token1...');
@@ -148,22 +124,47 @@ async function fetchPancakeSwapPrice(attempt = 1) {
         // Reset provider to primary if using fallback
         if (providerBSC !== providerBSC) {
             providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, 56);
-            pancakeSwapFactory = new ethers.Contract(PANCAKESWAP_FACTORY, FACTORY_ABI, providerBSC);
-            pairContract = undefined;
+            pairContract = new ethers.Contract(WBNB_BTCB_PAIR, PAIR_ABI, providerBSC);
             log('Switched back to primary BNB Chain provider');
         }
     } catch (e) {
-        log(`PancakeSwap price fetch error (attempt ${attempt}): ${e.message}`);
+        log(`PancakeSwap contract price fetch error (attempt ${attempt}): ${e.message}`);
         if (attempt < 3) {
             log('Retrying with primary provider...');
-            setTimeout(() => fetchPancakeSwapPrice(attempt + 1), 2000);
+            setTimeout(() => fetchPancakeSwapPriceFromContract(attempt + 1), 2000);
         } else {
             log('Switching to fallback BNB Chain provider...');
             providerBSC = fallbackProviderBSC;
-            pancakeSwapFactory = new ethers.Contract(PANCAKESWAP_FACTORY, FACTORY_ABI, providerBSC);
-            pairContract = undefined;
-            setTimeout(() => fetchPancakeSwapPrice(1), 2000);
+            pairContract = new ethers.Contract(WBNB_BTCB_PAIR, PAIR_ABI, providerBSC);
+            setTimeout(() => fetchPancakeSwapPriceFromContract(1), 2000);
         }
+    }
+}
+
+// Fetch PancakeSwap BTC/BNB price via API (fallback)
+async function fetchPancakeSwapPriceFromAPI() {
+    try {
+        log('Fetching PancakeSwap price via API (fallback)...');
+        // Fetch BTC and BNB prices in USD from CoinGecko
+        const response = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,binancecoin&vs_currencies=usd');
+        const btcUsdPrice = response.data.bitcoin.usd;
+        const bnbUsdPrice = response.data.binancecoin.usd;
+        const btcBnbPrice = btcUsdPrice / bnbUsdPrice; // BTC/BNB price
+        prices.pancakeswap.btc_bnb = btcBnbPrice;
+        log(`PancakeSwap BTC/BNB Price (via API): ${btcBnbPrice} BNB`);
+        broadcastPrice('pancakeswap', btcBnbPrice);
+    } catch (e) {
+        log(`PancakeSwap API price fetch error: ${e.message}`);
+    }
+}
+
+// Fetch PancakeSwap BTC/BNB price (try contract first, then API)
+async function fetchPancakeSwapPrice(attempt = 1) {
+    if (attempt <= 3) {
+        await fetchPancakeSwapPriceFromContract(attempt);
+    } else {
+        log('Failed to fetch price from contract after 3 attempts, falling back to API...');
+        await fetchPancakeSwapPriceFromAPI();
     }
 }
 
