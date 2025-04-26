@@ -201,6 +201,7 @@ async function arbitrageBot() {
 
         for (const { pair, spread } of spreads) {
             log(`${pair} Spread: $${spread}`);
+            broadcast('spread', { pair, spread }); // Broadcast spread for the Arbitrage Opportunities chart
             if (spread > 100) {
                 log(`Arbitrage opportunity detected on ${pair}!`);
                 const [buyExchange, sellExchange] = pair.split('-');
