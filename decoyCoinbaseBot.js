@@ -30,10 +30,13 @@ wsClient.on('open', () => {
 
 wsClient.on('message', async (message) => {
     try {
+        log(`Received WebSocket message: ${message}`);
         const data = JSON.parse(message.toString());
         if (data.type === 'price' && data.message.exchange.toLowerCase() === 'kraken') {
             krakenPrice = parseFloat(data.message.price);
             log(`Received Kraken BTC/USD Price: $${krakenPrice} (using as proxy for Coinbase)`);
+        } else {
+            log(`Ignoring non-price message: ${JSON.stringify(data)}`);
         }
     } catch (e) {
         log(`WebSocket message error: ${e.message}`);
