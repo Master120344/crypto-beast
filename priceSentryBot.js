@@ -13,9 +13,11 @@ const KRAKEN_WS_URL = 'wss://ws.kraken.com';
 const PROVIDER_URL_BSC = 'https://bsc-dataseed.binance.org/'; // Primary BNB Chain provider
 const FALLBACK_PROVIDER_URL_BSC = 'https://bsc-dataseed1.defibit.io/'; // Fallback BNB Chain provider
 const WEBSOCKET_PORT = 8081; // Local WebSocket server port for broadcasting prices
-const PRICE_FETCH_INTERVAL = 5000; // Fetch prices every 5 seconds
+const PRICE_FETCH_INTERVAL = 10000; // Fetch prices every 10 seconds to reduce API rate limiting
 const MAX_CONTRACT_RETRIES = 3; // Maximum retries for contract price fetch per provider
 const MAX_TOTAL_RETRIES = 6; // Total retries across both providers before falling back to API
+const API_RETRY_DELAY = 5000; // Initial delay for API retries (5 seconds)
+const API_MAX_RETRIES = 3; // Maximum API retries
 
 // PancakeSwap Pair (BNB Chain) - Hardcoded WBNB/BTCB pair address
 const WBNB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'; // Wrapped BNB
@@ -58,7 +60,7 @@ const bscNetwork = {
     ensAddress: null // Explicitly disable ENS
 };
 
-// Initialize providers with fallback, using custom network and staticNetwork option
+// Initialize providers with fallback, bypassing ENS resolution
 let providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, bscNetwork, { staticNetwork: true });
 let fallbackProviderBSC = new ethers.JsonRpcProvider(FALLBACK_PROVIDER_URL_BSC, bscNetwork, { staticNetwork: true });
 let pairContract = new ethers.Contract(WBNB_BTCB_PAIR, PAIR_ABI, providerBSC);
@@ -108,11 +110,11 @@ async function fetchPancakeSwapPriceFromContract(attempt = 1) {
 
         // Sequential calls to avoid potential issues
         log('Fetching token0...');
-        const token0 = await pairContract.token0();
+        const token0 = await pairContract.token0({ from: '0x0000000000000000000000000000000000000000' });
         log('Fetching token1...');
-        const token1 = await pairContract.token1();
+        const token1 = await pairContract.token1({ from: '0x0000000000000000000000000000000000000000' });
         log('Fetching reserves...');
-        const reserves = await pairContract.getReserves();
+        const reserves = await pairContract.getReserves({ from: '0x0000000000000000000000000000000000000000' });
 
         log(`Fetched pair data: token0=${token0}, token1=${token1}`);
 
@@ -151,11 +153,10 @@ async function fetchPancakeSwapPriceFromContract(attempt = 1) {
     }
 }
 
-// Fetch PancakeSwap BTC/BNB price via API (fallback)
-async function fetchPancakeSwapPriceFromAPI() {
+// Fetch PancakeSwap BTC/BNB price via API (fallback) with retry mechanism
+async function fetchPancakeSwapPriceFromAPI(attempt = 1) {
     try {
-        log('Fetching PancakeSwap price via API (fallback)...');
-        // Fetch BTC and BNB prices in USD from CoinGecko
+        log(`Fetching PancakeSwap price via API (attempt ${attempt})...`);
         const response = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,binancecoin&vs_currencies=usd');
         const btcUsdPrice = response.data.bitcoin.usd;
         const bnbUsdPrice = response.data.binancecoin.usd;
@@ -165,8 +166,14 @@ async function fetchPancakeSwapPriceFromAPI() {
         broadcastPrice('pancakeswap', btcBnbPrice);
         return true; // Success
     } catch (e) {
-        log(`PancakeSwap API price fetch error: ${e.message}`);
-        return false; // API failed
+        log(`PancakeSwap API price fetch error (attempt ${attempt}): ${e.message}`);
+        if (e.response && e.response.status === 429 && attempt < API_MAX_RETRIES) {
+            const delay = API_RETRY_DELAY * Math.pow(2, attempt - 1); // Exponential backoff
+            log(`Rate limited, retrying in ${delay / 1000} seconds...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return await fetchPancakeSwapPriceFromAPI(attempt + 1);
+        }
+        return false; // API failed after retries
     }
 }
 

@@ -10,7 +10,7 @@ const WebSocket = require('ws');
 const WEBSOCKET_SERVER_URL = 'ws://localhost:8081'; // WebSocket server hosted by PriceSentryBot
 const WEBSOCKET_PORT = 8082; // Local WebSocket server port for broadcasting arbitrage opportunities
 const SPREAD_CALCULATION_INTERVAL = 5000; // Calculate spread every 5 seconds
-const SPREAD_THRESHOLD = 500; // Minimum spread in USD to consider an arbitrage opportunity
+const SPREAD_THRESHOLD = 10; // Minimum spread in USD to consider an arbitrage opportunity (lowered for testing)
 
 // Price tracking for Kraken and PancakeSwap (received from PriceSentryBot)
 let prices = {

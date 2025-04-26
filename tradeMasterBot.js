@@ -11,7 +11,7 @@ const { ethers } = require('ethers');
 const WEBSOCKET_SERVER_URL = 'ws://localhost:8081'; // WebSocket server hosted by PriceSentryBot
 const SPREAD_EAGLE_WEBSOCKET_URL = 'ws://localhost:8082'; // WebSocket server hosted by SpreadEagleBot
 const PROVIDER_URL_BSC = 'https://bsc-dataseed.binance.org/';
-const FLASH_LOAN_CONTRACT_ADDRESS = '0xYourFlashLoanContractAddress'; // Replace with actual flash loan contract address
+const FLASH_LOAN_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000'; // Dummy address to avoid ENS resolution
 const FLASH_LOAN_AMOUNT = ethers.parseEther('1'); // 1 BNB for flash loan (adjust as needed)
 
 // Flash Loan ABI (simplified)
@@ -36,10 +36,13 @@ const bscNetwork = {
     ensAddress: null // Explicitly disable ENS
 };
 
-// Initialize provider and wallet for BNB Chain transactions
+// Initialize provider for BNB Chain transactions
 const provider = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, bscNetwork, { staticNetwork: true });
-const wallet = new ethers.Wallet(process.env.WALLET_PRIVATE_KEY, provider);
-const flashLoanContract = new ethers.Contract(FLASH_LOAN_CONTRACT_ADDRESS, FLASH_LOAN_ABI, wallet);
+
+// Initialize wallet and contract, bypassing ENS resolution
+const wallet = new ethers.Wallet(process.env.WALLET_PRIVATE_KEY);
+const signer = wallet.connect(provider);
+const flashLoanContract = new ethers.Contract(ethers.getAddress(FLASH_LOAN_CONTRACT_ADDRESS), FLASH_LOAN_ABI, signer);
 
 // Price tracking for Kraken and PancakeSwap (received from PriceSentryBot)
 let prices = {
