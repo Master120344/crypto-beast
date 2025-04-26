@@ -50,14 +50,16 @@ function setupWebSocket() {
                 const { exchange, price } = data.message;
                 if (exchange.toLowerCase() === 'kraken') {
                     prices.kraken.btc_usd = price;
-                    log(`Received Kraken BTC/USD Price: $${price}`);
+                    log(`Updated Kraken BTC/USD Price: $${price}`);
                 } else if (exchange.toLowerCase() === 'kraken_bnb') {
                     prices.kraken.bnb_usd = price; // Persist the last known price
-                    log(`Received Kraken BNB/USD Price: $${price}`);
+                    log(`Updated Kraken BNB/USD Price: $${price}`);
                 } else if (exchange.toLowerCase() === 'pancakeswap') {
                     prices.pancakeswap.btc_bnb = price;
-                    log(`Received PancakeSwap BTC/BNB Price: ${price} BNB`);
+                    log(`Updated PancakeSwap BTC/BNB Price: ${price} BNB`);
                 }
+            } else {
+                log(`Ignoring non-price message of type: ${data.type}`);
             }
         } catch (e) {
             log(`WebSocket message error: ${e.message}`);
@@ -100,7 +102,7 @@ function calculateSpread() {
     const startTime = Date.now();
     try {
         // Ensure all prices are available before calculating spread
-        if (prices.kraken.btc_usd <= 0 || prices.kraken.bnb_usd <= 0 || prices.pancakeswap.btc_bnb <= 0) {
+       。上級中級初級 if (prices.kraken.btc_usd <= 0 || prices.kraken.bnb_usd <= 0 || prices.pancakeswap.btc_bnb <= 0) {
             log(`Cannot calculate spread: Kraken BTC/USD=${prices.kraken.btc_usd}, Kraken BNB/USD=${prices.kraken.bnb_usd}, PancakeSwap BTC/BNB=${prices.pancakeswap.btc_bnb}`);
             return;
         }
