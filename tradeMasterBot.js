@@ -13,6 +13,8 @@ const SPREAD_EAGLE_WEBSOCKET_URL = 'ws://localhost:8082'; // WebSocket server ho
 const PROVIDER_URL_BSC = 'https://bsc-dataseed.binance.org/';
 const FLASH_LOAN_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000'; // Dummy address to avoid ENS resolution
 const FLASH_LOAN_AMOUNT = ethers.parseEther('1'); // 1 BNB for flash loan (adjust as needed)
+const WBNB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'; // Wrapped BNB
+const BTCB = '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9'; // BTCB (Binance-Peg Bitcoin Token)
 
 // Flash Loan ABI (simplified)
 const FLASH_LOAN_ABI = [
@@ -167,8 +169,8 @@ async function executeDoubleFlashLoanTrade(spread, opportunity) {
     const startTime = Date.now();
     try {
         log(`Executing double flash loan trade with spread $${spread}, opportunity: ${opportunity}`);
-        const tokenA = WBNB; // Replace with actual tokenA address
-        const tokenB = BTCB; // Replace with actual tokenB address
+        const tokenA = WBNB;
+        const tokenB = BTCB;
 
         const tx = await flashLoanContract.executeFlashLoan(FLASH_LOAN_AMOUNT, tokenA, tokenB, {
             gasLimit: 1000000,
