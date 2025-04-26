@@ -5,14 +5,14 @@
 
 require('dotenv').config();
 const WebSocket = require('ws');
-const { ethers } = require('ethers');
+const Web3 = require('web3');
 
 // Configuration
 const WEBSOCKET_SERVER_URL = 'ws://localhost:8081'; // WebSocket server hosted by PriceSentryBot
 const SPREAD_EAGLE_WEBSOCKET_URL = 'ws://localhost:8082'; // WebSocket server hosted by SpreadEagleBot
 const PROVIDER_URL_BSC = 'https://bsc-dataseed.binance.org/';
-const FLASH_LOAN_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000'; // Dummy address to avoid ENS resolution
-const FLASH_LOAN_AMOUNT = ethers.parseEther('1'); // 1 BNB for flash loan (adjust as needed)
+const FLASH_LOAN_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000'; // Dummy address
+const FLASH_LOAN_AMOUNT = Web3.utils.toWei('1', 'ether'); // 1 BNB for flash loan (adjust as needed)
 const WBNB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'; // Wrapped BNB
 const BTCB = '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9'; // BTCB (Binance-Peg Bitcoin Token)
 
@@ -31,20 +31,12 @@ const FLASH_LOAN_ABI = [
     }
 ];
 
-// Custom network configuration to disable ENS on BNB Chain
-const bscNetwork = {
-    chainId: 56,
-    name: 'bsc',
-    ensAddress: null // Explicitly disable ENS
-};
-
-// Initialize provider for BNB Chain transactions
-const provider = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, bscNetwork, { staticNetwork: true });
-
-// Initialize wallet and contract, bypassing ENS resolution
-const wallet = new ethers.Wallet(process.env.WALLET_PRIVATE_KEY);
-const signer = wallet.connect(provider);
-const flashLoanContract = new ethers.Contract(ethers.getAddress(FLASH_LOAN_CONTRACT_ADDRESS), FLASH_LOAN_ABI, signer);
+// Initialize Web3 provider
+const web3 = new Web3(new Web3.providers.HttpProvider(PROVIDER_URL_BSC));
+const walletPrivateKey = process.env.WALLET_PRIVATE_KEY;
+const account = web3.eth.accounts.privateKeyToAccount(walletPrivateKey);
+web3.eth.accounts.wallet.add(account);
+const flashLoanContract = new web3.eth.Contract(FLASH_LOAN_ABI, FLASH_LOAN_CONTRACT_ADDRESS);
 
 // Price tracking for Kraken and PancakeSwap (received from PriceSentryBot)
 let prices = {
@@ -172,14 +164,18 @@ async function executeDoubleFlashLoanTrade(spread, opportunity) {
         const tokenA = WBNB;
         const tokenB = BTCB;
 
-        const tx = await flashLoanContract.executeFlashLoan(FLASH_LOAN_AMOUNT, tokenA, tokenB, {
-            gasLimit: 1000000,
-            gasPrice: ethers.parseUnits('5', 'gwei')
+        const tx = await flashLoanContract.methods.executeFlashLoan(
+            FLASH_LOAN_AMOUNT,
+            tokenA,
+            tokenB
+        ).send({
+            from: account.address,
+            gas: 1000000,
+            gasPrice: Web3.utils.toWei('5', 'gwei')
         });
 
-        const receipt = await tx.wait();
-        log(`Trade executed successfully: ${receipt.transactionHash}`);
-        broadcastTrade({ spread, opportunity, txHash: receipt.transactionHash });
+        log(`Trade executed successfully: ${tx.transactionHash}`);
+        broadcastTrade({ spread, opportunity, txHash: tx.transactionHash });
 
         // Update monitoring data
         monitoringData.tradeMaster.lastUpdate = startTime;

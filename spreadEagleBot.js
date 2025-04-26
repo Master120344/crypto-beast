@@ -51,7 +51,7 @@ function setupWebSocket() {
                 if (exchange.toLowerCase() === 'kraken') {
                     prices.kraken.btc_usd = price;
                     log(`Received Kraken BTC/USD Price: $${price}`);
-                } else if (exchange.toLowerCase() === 'kraken_bnb') {
+                } else if (exchange.toLowerCase() === 'kraken_bnb' && price > 0) { // Only update if price is valid
                     prices.kraken.bnb_usd = price;
                     log(`Received Kraken BNB/USD Price: $${price}`);
                 } else if (exchange.toLowerCase() === 'pancakeswap') {
@@ -99,7 +99,7 @@ function broadcastArbitrageOpportunity(spread, opportunity) {
 function calculateSpread() {
     const startTime = Date.now();
     try {
-        // Ensure both prices are available before calculating spread
+        // Ensure all prices are available before calculating spread
         if (prices.kraken.btc_usd <= 0 || prices.kraken.bnb_usd <= 0 || prices.pancakeswap.btc_bnb <= 0) {
             log(`Cannot calculate spread: Kraken BTC/USD=${prices.kraken.btc_usd}, Kraken BNB/USD=${prices.kraken.bnb_usd}, PancakeSwap BTC/BNB=${prices.pancakeswap.btc_bnb}`);
             return;

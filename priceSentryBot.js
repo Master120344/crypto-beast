@@ -5,7 +5,7 @@
 
 require('dotenv').config();
 const WebSocket = require('ws');
-const { ethers } = require('ethers');
+const Web3 = require('web3');
 const axios = require('axios');
 
 // Configuration
@@ -53,17 +53,10 @@ const PAIR_ABI = [
     }
 ];
 
-// Custom network configuration to disable ENS on BNB Chain
-const bscNetwork = {
-    chainId: 56,
-    name: 'bsc',
-    ensAddress: null // Explicitly disable ENS
-};
-
-// Initialize providers with fallback, bypassing ENS resolution
-let providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, bscNetwork, { staticNetwork: true });
-let fallbackProviderBSC = new ethers.JsonRpcProvider(FALLBACK_PROVIDER_URL_BSC, bscNetwork, { staticNetwork: true });
-let pairContract = new ethers.Contract(WBNB_BTCB_PAIR, PAIR_ABI, providerBSC);
+// Initialize Web3 providers with fallback
+let providerBSC = new Web3(new Web3.providers.HttpProvider(PROVIDER_URL_BSC));
+let fallbackProviderBSC = new Web3(new Web3.providers.HttpProvider(FALLBACK_PROVIDER_URL_BSC));
+let pairContract = new providerBSC.eth.Contract(PAIR_ABI, WBNB_BTCB_PAIR);
 let currentProvider = 'primary'; // Track which provider is in use
 
 // Prices for exchanges (Kraken, PancakeSwap)
@@ -110,16 +103,16 @@ async function fetchPancakeSwapPriceFromContract(attempt = 1) {
 
         // Sequential calls to avoid potential issues
         log('Fetching token0...');
-        const token0 = await pairContract.token0({ from: '0x0000000000000000000000000000000000000000' });
+        const token0 = await pairContract.methods.token0().call();
         log('Fetching token1...');
-        const token1 = await pairContract.token1({ from: '0x0000000000000000000000000000000000000000' });
+        const token1 = await pairContract.methods.token1().call();
         log('Fetching reserves...');
-        const reserves = await pairContract.getReserves({ from: '0x0000000000000000000000000000000000000000' });
+        const reserves = await pairContract.methods.getReserves().call();
 
         log(`Fetched pair data: token0=${token0}, token1=${token1}`);
 
-        const reserve0 = Number(ethers.formatUnits(reserves.reserve0, 18));
-        const reserve1 = Number(ethers.formatUnits(reserves.reserve1, 18));
+        const reserve0 = Number(Web3.utils.fromWei(reserves[0], 'ether'));
+        const reserve1 = Number(Web3.utils.fromWei(reserves[1], 'ether'));
 
         log(`Reserves: reserve0=${reserve0}, reserve1=${reserve1}`);
 
@@ -135,8 +128,8 @@ async function fetchPancakeSwapPriceFromContract(attempt = 1) {
 
         // Reset provider to primary if using fallback
         if (currentProvider === 'fallback') {
-            providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, bscNetwork, { staticNetwork: true });
-            pairContract = new ethers.Contract(WBNB_BTCB_PAIR, PAIR_ABI, providerBSC);
+            providerBSC = new Web3(new Web3.providers.HttpProvider(PROVIDER_URL_BSC));
+            pairContract = new providerBSC.eth.Contract(PAIR_ABI, WBNB_BTCB_PAIR);
             currentProvider = 'primary';
             log('Switched back to primary BNB Chain provider');
         }
@@ -186,7 +179,7 @@ async function fetchPancakeSwapPrice() {
         if (totalAttempts >= MAX_CONTRACT_RETRIES && !useFallbackProvider) {
             log('Switching to fallback BNB Chain provider after initial retries...');
             providerBSC = fallbackProviderBSC;
-            pairContract = new ethers.Contract(WBNB_BTCB_PAIR, PAIR_ABI, providerBSC);
+            pairContract = new providerBSC.eth.Contract(PAIR_ABI, WBNB_BTCB_PAIR);
             currentProvider = 'fallback';
             useFallbackProvider = true;
         }
