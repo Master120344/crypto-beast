@@ -21,44 +21,46 @@ let monitoringData = {
 };
 
 // Initialize WebSocket client to connect to PriceSentryBot's server
-let wsClient = new WebSocket(WEBSOCKET_SERVER_URL);
+let wsClient;
 
-// Handle WebSocket connection events
-wsClient.on('open', () => {
-    log('Connected to PriceSentryBot WebSocket server');
-});
+// Function to set up WebSocket client and event handlers
+function setupWebSocket() {
+    wsClient = new WebSocket(WEBSOCKET_SERVER_URL);
 
-wsClient.on('message', async (message) => {
-    try {
-        log(`Received WebSocket message: ${message}`);
-        const data = JSON.parse(message.toString());
-        if (data.type === 'price' && data.message.exchange.toLowerCase() === 'kraken') {
-            krakenPrice = parseFloat(data.message.price);
-            log(`Received Kraken BTC/USD Price: $${krakenPrice}`);
-        } else {
-            log(`Ignoring non-price message: ${JSON.stringify(data)}`);
+    wsClient.on('open', () => {
+        log('Connected to PriceSentryBot WebSocket server');
+    });
+
+    wsClient.on('message', async (message) => {
+        try {
+            log(`Received WebSocket message: ${message}`);
+            const data = JSON.parse(message.toString());
+            if (data.type === 'price' && data.message.exchange.toLowerCase() === 'kraken') {
+                krakenPrice = parseFloat(data.message.price);
+                log(`Received Kraken BTC/USD Price: $${krakenPrice}`);
+            } else {
+                log(`Ignoring non-price message: ${JSON.stringify(data)}`);
+            }
+        } catch (e) {
+            log(`WebSocket message error: ${e.message}`);
         }
-    } catch (e) {
-        log(`WebSocket message error: ${e.message}`);
-    }
-});
+    });
 
-wsClient.on('error', (error) => {
-    log(`WebSocket error: ${error.message}`);
-});
+    wsClient.on('error', (error) => {
+        log(`WebSocket error: ${error.message}`);
+    });
 
-wsClient.on('close', () => {
-    log('Disconnected from PriceSentryBot WebSocket server. Attempting to reconnect...');
-    setTimeout(() => {
-        wsClient = new WebSocket(WEBSOCKET_SERVER_URL); // Reconnect after 5 seconds
-    }, 5000);
-});
+    wsClient.on('close', () => {
+        log('Disconnected from PriceSentryBot WebSocket server. Attempting to reconnect...');
+        setTimeout(setupWebSocket, 5000); // Reconnect after 5 seconds
+    });
+}
 
 // Log messages with timestamp for debugging and monitoring
 function log(message) {
     const timestamp = new Date().toISOString();
     console.log(`${timestamp} - DecoyKrakenBot: ${message}`);
-    if (wsClient.readyState === WebSocket.OPEN) {
+    if (wsClient && wsClient.readyState === WebSocket.OPEN) {
         const data = JSON.stringify({ type: 'log', message, timestamp });
         wsClient.send(data);
     }
@@ -68,7 +70,7 @@ function log(message) {
 function broadcastDecoyOrder(order) {
     const timestamp = new Date().toISOString();
     const data = JSON.stringify({ type: 'decoyOrder', message: order, timestamp });
-    if (wsClient.readyState === WebSocket.OPEN) {
+    if (wsClient && wsClient.readyState === WebSocket.OPEN) {
         wsClient.send(data);
     }
 }
@@ -102,6 +104,9 @@ function placeDecoyOrders() {
 function startDecoyKrakenBot() {
     log('DecoyKrakenBot starting...');
     log('Waiting for price data from PriceSentryBot to place decoy orders on Kraken...');
+
+    // Set up WebSocket connection
+    setupWebSocket();
 
     // Delay the initial price check to ensure WebSocket messages are received
     setTimeout(() => {
