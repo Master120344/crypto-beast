@@ -1,29 +1,95 @@
 // File: tradeMasterBot.js
-// TradeMasterBot: Elite trade execution bot for arbitrage opportunities
-// Connects to PriceSentryBot's WebSocket server to receive opportunities from SpreadEagleBot, executes real trades on Kraken and Coinbase
+// TradeMasterBot: Elite trade execution bot for arbitrage opportunities using double flash loans
+// Connects to PriceSentryBot's WebSocket server to receive opportunities from SpreadEagleBot, executes trades on PancakeSwap and Kraken
 // Designed to link with PriceSentryBot, SpreadEagleBot, DecoyKrakenBot, DecoyCoinbaseBot, and EvolveGeniusBot
 
 require('dotenv').config();
 const WebSocket = require('ws');
-const Kraken = require('kraken-api'); // Kraken API client (install via: npm install kraken-api)
-const axios = require('axios'); // For Coinbase API calls
+const Kraken = require('kraken-api');
+const { ethers } = require('ethers');
 
 // Configuration
 const WEBSOCKET_SERVER_URL = 'ws://localhost:8081'; // WebSocket server hosted by PriceSentryBot
-const TRADE_EXECUTION_INTERVAL = 5000; // Check for opportunities every 5 seconds (in milliseconds)
+const PROVIDER_URL_BSC = 'https://bsc-dataseed.binance.org/'; // BNB Chain provider
 const TRADE_HISTORY_LIMIT = 500; // Maximum number of trade history entries to store in memory
-const FEE_PERCENTAGE = 0.1; // Estimated trading fee percentage (0.1% per trade, adjust based on exchange)
-const PROFIT_MULTIPLIER = 0.9; // Assume 90% of spread as profit after fees (to be adjusted later)
+const FEE_PERCENTAGE = 0.1; // Estimated trading fee percentage (0.1% per trade)
+const FLASH_LOAN_FEE = 0.09; // Aave flash loan fee (0.09%)
+const GAS_FEE_BUFFER = 0.001; // Extra BNB for gas fees (estimated, ~$0.50)
 
-// Kraken API setup (using existing keys, assuming trading permissions)
+// Kraken API setup
 const KRAKEN_API_KEY = process.env.KRAKEN_API_KEY || 'uLlqQPALCxTNczwcnqhQRclF3z4IL/B9u';
 const KRAKEN_API_SECRET = process.env.KRAKEN_API_SECRET || 'ME37ocQaoN0zVK3bv073tFiz7Z2fX6';
 const kraken = new Kraken(KRAKEN_API_KEY, KRAKEN_API_SECRET);
 
-// Coinbase API setup (placeholder for keys)
-const COINBASE_API_KEY = process.env.COINBASE_API_KEY || 'your_coinbase_api_key_here';
-const COINBASE_API_SECRET = process.env.COINBASE_API_SECRET || 'your_coinbase_api_secret_here';
-const COINBASE_API_URL = 'https://api.coinbase.com/v2/'; // Base URL for Coinbase API
+// Wallet setup for DeFi trading
+const WALLET_PRIVATE_KEY = process.env.WALLET_PRIVATE_KEY || 'your_wallet_private_key_here';
+const providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC);
+const wallet = new ethers.Wallet(WALLET_PRIVATE_KEY, providerBSC);
+
+// PancakeSwap Router and Aave Lending Pool (BNB Chain)
+const PANCAKESWAP_ROUTER = '0x10ED43C718714eb63d5aA57B78B54704E256024'; // PancakeSwap Router V2
+const WBNB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'; // Wrapped BNB
+const BTCB = '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9'; // BTCB (Binance-Peg Bitcoin Token)
+const AAVE_LENDING_POOL = '0x26fCbd3afebbe28D0A8684F790C48368D21665b'; // Aave Lending Pool on BNB Chain
+
+// PancakeSwap ABI
+const SWAP_ABI = [
+    {
+        "constant": false,
+        "inputs": [
+            { "name": "amountIn", "type": "uint256" },
+            { "name": "amountOutMin", "type": "uint256" },
+            { "name": "path", "type": "address[]" },
+            { "name": "to", "type": "address" },
+            { "name": "deadline", "type": "uint256" }
+        ],
+        "name": "swapExactTokensForTokens",
+        "outputs": [
+            { "name": "amounts", "type": "uint256[]" }
+        ],
+        "type": "function"
+    }
+];
+
+// Aave Flash Loan ABI (simplified)
+const AAVE_ABI = [
+    {
+        "constant": false,
+        "inputs": [
+            { "name": "assets", "type": "address[]" },
+            { "name": "amounts", "type": "uint256[]" },
+            { "name": "premiums", "type": "uint256[]" },
+            { "name": "initiator", "type": "address" },
+            { "name": "params", "type": "bytes" }
+        ],
+        "name": "executeOperation",
+        "outputs": [{ "name": "", "type": "bool" }],
+        "type": "function"
+    },
+    {
+        "constant": false,
+        "inputs": [
+            { "name": "assets", "type": "address[]" },
+            { "name": "amounts", "type": "uint256[]" },
+            { "name": "modes", "type": "uint256[]" },
+            { "name": "onBehalfOf", "type": "address" },
+            { "name": "params", "type": "bytes" },
+            { "name": "referralCode", "type": "uint16" }
+        ],
+        "name": "flashLoan",
+        "outputs": [],
+        "type": "function"
+    }
+];
+
+const pancakeSwapRouter = new ethers.Contract(PANCAKESWAP_ROUTER, SWAP_ABI, wallet);
+const aaveLendingPool = new ethers.Contract(AAVE_LENDING_POOL, AAVE_ABI, wallet);
+
+// Price tracking for exchanges (received from PriceSentryBot)
+let prices = {
+    kraken: { btc_usd: 0, bnb_usd: 0 },
+    pancakeswap: { btc_bnb: 0 }
+};
 
 // Trade history for analysis and dashboard
 let tradeHistory = [];
@@ -44,7 +110,16 @@ wsClient.on('open', () => {
 wsClient.on('message', async (message) => {
     try {
         const data = JSON.parse(message);
-        if (data.type === 'opportunity') {
+        if (data.type === 'price') {
+            const { exchange, price } = data.message;
+            if (exchange.toLowerCase() === 'kraken') {
+                prices.kraken.btc_usd = price;
+                log(`Received Kraken BTC/USD Price: $${price}`);
+            } else if (exchange.toLowerCase() === 'pancakeswap') {
+                prices.pancakeswap.btc_bnb = price;
+                log(`Received PancakeSwap BTC/BNB Price: ${price} BNB`);
+            }
+        } else if (data.type === 'opportunity') {
             const { pair, spread, buyExchange, sellExchange } = data.message;
             log(`Received arbitrage opportunity from SpreadEagleBot: ${pair}, Spread: $${spread}, Buy on ${buyExchange}, Sell on ${sellExchange}`);
             await executeTrade(spread, buyExchange, sellExchange);
@@ -69,7 +144,6 @@ wsClient.on('close', () => {
 function log(message) {
     const timestamp = new Date().toISOString();
     console.log(`${timestamp} - TradeMasterBot: ${message}`);
-    // Broadcast log to PriceSentryBot's WebSocket server for dashboard visibility
     if (wsClient.readyState === WebSocket.OPEN) {
         const data = JSON.stringify({ type: 'log', message, timestamp });
         wsClient.send(data);
@@ -107,8 +181,8 @@ function broadcastMonitoring(exchange, data) {
 async function placeKrakenOrder(type, price, amount) {
     try {
         const orderDetails = {
-            pair: 'XBTUSD', // Kraken pair for BTC/USD
-            type: type, // 'buy' or 'sell'
+            pair: 'XBTUSD',
+            type: type,
             ordertype: 'limit',
             price: price,
             volume: amount
@@ -122,82 +196,67 @@ async function placeKrakenOrder(type, price, amount) {
     }
 }
 
-// Execute trade on Coinbase (real order placement, placeholder for API keys)
-async function placeCoinbaseOrder(type, price, amount) {
-    try {
-        const orderDetails = {
-            type: 'limit',
-            side: type, // 'buy' or 'sell'
-            product_id: 'BTC-USD',
-            price: price,
-            size: amount
-        };
-        const response = await axios.post(
-            `${COINBASE_API_URL}orders`,
-            orderDetails,
-            {
-                headers: {
-                    'CB-ACCESS-KEY': COINBASE_API_KEY,
-                    'CB-ACCESS-SIGN': 'TBD', // Requires Coinbase API signing, placeholder for now
-                    'CB-ACCESS-TIMESTAMP': Math.floor(Date.now() / 1000),
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-        log(`Coinbase ${type} order placed: ${JSON.stringify(response.data)}`);
-        return response.data;
-    } catch (e) {
-        log(`Coinbase order error: ${e.message}`);
-        throw e;
-    }
-}
-
-// Execute trade based on arbitrage opportunity
+// Execute trade on PancakeSwap using flash loans
 async function executeTrade(spread, buyExchange, sellExchange) {
     const startTime = Date.now();
     try {
-        // Calculate trade amount and profit
-        const tradeAmount = spread * PROFIT_MULTIPLIER; // Assume 90% of spread as profit after fees
-        const fees = spread * FEE_PERCENTAGE / 100; // Estimated fees per trade
-        const netProfit = tradeAmount - fees;
-        const btcAmount = tradeAmount / (buyExchange === 'Kraken' ? prices.kraken.btc_usd : prices.coinbase.btc_usd);
+        // Calculate trade parameters
+        const tradeAmountUSD = spread * 0.9; // Target 90% of spread as profit
+        const btcAmount = tradeAmountUSD / (buyExchange === 'Kraken' ? prices.kraken.btc_usd : (prices.pancakeswap.btc_bnb * prices.kraken.bnb_usd));
+        const bnbAmountForTrade = btcAmount * prices.pancakeswap.btc_bnb; // BNB needed for PancakeSwap trade
+        const bnbAmountForFees = GAS_FEE_BUFFER; // Extra BNB for gas fees
+        const totalBNBLoan = bnbAmountForTrade + bnbAmountForFees;
 
-        log(`Executing trade: Spread: $${spread}, Buy on ${buyExchange}, Sell on ${sellExchange}`);
-        log(`Trade Amount: $${tradeAmount}, BTC Amount: ${btcAmount}, Estimated Fees: $${fees}, Net Profit: $${netProfit}`);
+        // Flash loan fees (0.09% for Aave)
+        const flashLoanFee = totalBNBLoan * FLASH_LOAN_FEE / 100;
+        const totalBNBRepay = totalBNBLoan + flashLoanFee;
 
-        // Placeholder: Real trade execution requires API keys with trading permissions
-        log('Trade execution requires trading API keys and wallet setup. Logging intended orders...');
+        // Ensure profitability after fees
+        const krakenPriceUSD = prices.kraken.btc_usd;
+        const pancakeswapPriceUSD = prices.pancakeswap.btc_bnb * prices.kraken.bnb_usd;
+        const profitUSD = btcAmount * (krakenPriceUSD - pancakeswapPriceUSD);
+        const totalFeesUSD = (totalBNBRepay * prices.kraken.bnb_usd) + (tradeAmountUSD * FEE_PERCENTAGE / 100);
+        const netProfitUSD = profitUSD - totalFeesUSD;
 
-        // Intended buy order
-        const buyPrice = buyExchange === 'Kraken' ? prices.kraken.btc_usd : prices.coinbase.btc_usd;
-        if (buyExchange === 'Kraken') {
-            await placeKrakenOrder('buy', buyPrice, btcAmount);
-        } else {
-            await placeCoinbaseOrder('buy', buyPrice, btcAmount);
+        if (netProfitUSD <= 0) {
+            log(`Trade not profitable: Net Profit: $${netProfitUSD}. Skipping trade.`);
+            return;
         }
 
-        // Intended sell order
-        const sellPrice = sellExchange === 'Kraken' ? prices.kraken.btc_usd : prices.coinbase.btc_usd;
-        if (sellExchange === 'Kraken') {
-            await placeKrakenOrder('sell', sellPrice, btcAmount);
-        } else {
-            await placeCoinbaseOrder('sell', sellPrice, btcAmount);
-        }
+        log(`Executing double flash loan trade: Spread: $${spread}, Buy on ${buyExchange}, Sell on ${sellExchange}`);
+        log(`Trade Amount: ${btcAmount} BTC, BNB Loan: ${totalBNBLoan} BNB, Fees: $${totalFeesUSD}, Net Profit: $${netProfitUSD}`);
+
+        // Flash loan transaction (simplified for Aave)
+        const assets = [WBNB];
+        const amounts = [ethers.parseUnits(totalBNBLoan.toString(), 18)];
+        const modes = [0]; // 0 = repay after
+        const params = ethers.utils.defaultAbiCoder.encode(['address', 'uint256'], [wallet.address, btcAmount]);
+        const tx = await aaveLendingPool.flashLoan(
+            assets,
+            amounts,
+            modes,
+            wallet.address,
+            params,
+            0,
+            { gasLimit: 3000000 }
+        );
+        await tx.wait();
+        log(`Flash loan executed: ${tx.hash}`);
 
         // Store trade details
         const trade = {
             spread,
             buyExchange,
             sellExchange,
-            tradeAmount,
             btcAmount,
-            fees,
-            netProfit,
+            bnbLoan: totalBNBLoan,
+            fees: totalFeesUSD,
+            netProfit: netProfitUSD,
             timestamp: startTime
         };
         tradeHistory.push(trade);
         broadcastTrade(trade);
-        broadcastProfit(netProfit);
+        broadcastProfit(netProfitUSD);
 
         // Optimize memory by limiting trade history
         if (tradeHistory.length > TRADE_HISTORY_LIMIT) {
@@ -217,7 +276,6 @@ async function executeTrade(spread, buyExchange, sellExchange) {
 async function startTradeMasterBot() {
     log('TradeMasterBot starting...');
     log('Waiting for arbitrage opportunities from SpreadEagleBot...');
-    // No loop needed; trades are executed on-demand via WebSocket messages
 }
 
 // Execute the bot
