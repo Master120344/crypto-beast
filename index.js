@@ -10,7 +10,7 @@ const KRAKEN_WS = 'wss://ws.kraken.com';
 const UNISWAP_ROUTER = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488'; // Uniswap Router v2 on Ethereum
 const BINANCE_API = 'https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT'; // Binance public API
 const PROVIDER_URL_BSC = 'https://bsc-dataseed.binance.org/';
-const PROVIDER_URL_ETH = 'https://cloudflare-eth.com'; // Using Cloudflare Ethereum Gateway
+const PROVIDER_URL_ETH = 'https://eth-mainnet.g.alchemy.com/v2/demo'; // Using Alchemy public endpoint
 const AAVE_LENDING_POOL = '0x26fCbd3afebbe28D0A8684F790C48368D21665b'; // Aave Lending Pool on BSC
 const DYDX_SOLO_MARGIN = '0x1E0447b9cB2f1fBCcA5bC9C1aE73C5E4D20dB74'; // Placeholder for dYdX (not available on BSC)
 
@@ -157,6 +157,7 @@ async function monitorBinance() {
             broadcast('price', { exchange: 'Binance', price: prices.binance.btc_usdt }); // Broadcast Binance price
         } catch (e) {
             log(`Binance Bot: Price fetch failed: ${e.message}`);
+            log(`Binance Bot: Error details: ${JSON.stringify(e)}`);
         }
         await new Promise(resolve => setTimeout(resolve, 5000));
     }
