@@ -1,6 +1,6 @@
 // File: decoyCoinbaseBot.js
-// DecoyCoinbaseBot: Places decoy orders on Coinbase to manipulate market perception
-// Connects to PriceSentryBot's WebSocket server to receive price data
+// DecoyCoinbaseBot: Places decoy orders to manipulate market perception
+// Connects to PriceSentryBot's WebSocket server to receive price data (using Kraken prices as a proxy)
 // Designed to link with PriceSentryBot, SpreadEagleBot, TradeMasterBot, DecoyKrakenBot, and EvolveGeniusBot
 
 require('dotenv').config();
@@ -11,8 +11,8 @@ const WEBSOCKET_SERVER_URL = 'ws://localhost:8081'; // WebSocket server hosted b
 const DECOY_ORDER_INTERVAL = 10000; // Place decoy orders every 10 seconds
 const DECOY_PRICE_OFFSET = 0.01; // 1% offset from market price for decoy orders
 
-// Price tracking for Coinbase (received from PriceSentryBot)
-let coinbasePrice = 0;
+// Price tracking for Kraken (received from PriceSentryBot, used as a proxy for Coinbase)
+let krakenPrice = 0;
 
 // Bot monitoring states for latency and updates
 let monitoringData = {
@@ -30,9 +30,9 @@ wsClient.on('open', () => {
 wsClient.on('message', async (message) => {
     try {
         const data = JSON.parse(message);
-        if (data.type === 'price' && data.message.exchange.toLowerCase() === 'coinbase') {
-            coinbasePrice = data.message.price;
-            log(`Received Coinbase BTC/USD Price: $${coinbasePrice}`);
+        if (data.type === 'price' && data.message.exchange.toLowerCase() === 'kraken') {
+            krakenPrice = data.message.price;
+            log(`Received Kraken BTC/USD Price: $${krakenPrice} (using as proxy for Coinbase)`);
         }
     } catch (e) {
         log(`WebSocket message error: ${e.message}`);
@@ -69,22 +69,22 @@ function broadcastDecoyOrder(order) {
     }
 }
 
-// Place decoy orders on Coinbase
+// Place decoy orders (simulated, using Kraken price as a proxy)
 function placeDecoyOrders() {
     const startTime = Date.now();
     try {
-        if (coinbasePrice <= 0) {
-            log('Waiting for valid Coinbase price data...');
+        if (krakenPrice <= 0) {
+            log('Waiting for valid Kraken price data (proxy for Coinbase)...');
             return;
         }
 
         // Simulate placing decoy orders (buy and sell slightly off market price)
-        const buyPrice = coinbasePrice * (1 - DECOY_PRICE_OFFSET);
-        const sellPrice = coinbasePrice * (1 + DECOY_PRICE_OFFSET);
+        const buyPrice = krakenPrice * (1 - DECOY_PRICE_OFFSET);
+        const sellPrice = krakenPrice * (1 + DECOY_PRICE_OFFSET);
         const amount = 0.001; // Small amount for decoy orders
 
-        log(`Placing decoy orders on Coinbase: Buy at $${buyPrice}, Sell at $${sellPrice}, Amount: ${amount} BTC`);
-        broadcastDecoyOrder({ exchange: 'Coinbase', buyPrice, sellPrice, amount });
+        log(`Placing decoy orders (simulated for Coinbase): Buy at $${buyPrice}, Sell at $${sellPrice}, Amount: ${amount} BTC`);
+        broadcastDecoyOrder({ exchange: 'Coinbase (simulated)', buyPrice, sellPrice, amount });
 
         // Update monitoring data
         monitoringData.decoyCoinbase.lastUpdate = startTime;
@@ -97,7 +97,7 @@ function placeDecoyOrders() {
 // Start DecoyCoinbaseBot
 function startDecoyCoinbaseBot() {
     log('DecoyCoinbaseBot starting...');
-    log('Waiting for price data from PriceSentryBot to place decoy orders on Coinbase...');
+    log('Waiting for price data from PriceSentryBot to place decoy orders (simulated for Coinbase)...');
 
     // Place decoy orders at regular intervals
     setInterval(placeDecoyOrders, DECOY_ORDER_INTERVAL);
