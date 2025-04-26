@@ -3,35 +3,33 @@ require('dotenv').config();
 const axios = require('axios');
 const WebSocket = require('ws');
 const { ethers } = require('ethers');
-const { log, logTrade, logMonitoring } = require('./utils');
+const { log: originalLog, logTrade: originalLogTrade, logMonitoring: originalLogMonitoring } = require('./utils');
 
 // Configuration
 const KRAKEN_WS = 'wss://ws.kraken.com';
 const UNISWAP_ROUTER = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488'; // Uniswap Router v2 on Ethereum
+const BINANCE_API = 'https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT'; // Binance public API
 const PROVIDER_URL_BSC = 'https://bsc-dataseed.binance.org/';
-const PROVIDER_URL_ETH = `https://mainnet.infura.io/v3/${process.env.INFURA_PROJECT_ID}`;
+const PROVIDER_URL_ETH = 'https://cloudflare-eth.com'; // Using Cloudflare Ethereum Gateway
 const AAVE_LENDING_POOL = '0x26fCbd3afebbe28D0A8684F790C48368D21665b'; // Aave Lending Pool on BSC
 const DYDX_SOLO_MARGIN = '0x1E0447b9cB2f1fBCcA5bC9C1aE73C5E4D20dB74'; // Placeholder for dYdX (not available on BSC)
-
-// Load keys from .env
-const WALLET_ADDRESS = process.env.WALLET_ADDRESS;
-const WALLET_PRIVATE_KEY = process.env.WALLET_PRIVATE_KEY;
-const KRAKEN_API_KEY = process.env.KRAKEN_API_KEY;
-const KRAKEN_API_SECRET = process.env.KRAKEN_API_SECRET;
-
-// Initialize Ethers for BSC and Ethereum
-const providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC);
-const providerETH = new ethers.JsonRpcProvider(PROVIDER_URL_ETH);
-const walletBSC = new ethers.Wallet(WALLET_PRIVATE_KEY, providerBSC);
-const walletETH = new ethers.Wallet(WALLET_PRIVATE_KEY, providerETH);
 
 // Skip strict address validation for now
 const UNISWAP_ROUTER_CHECKSUM = UNISWAP_ROUTER;
 const AAVE_LENDING_POOL_CHECKSUM = AAVE_LENDING_POOL;
 const DYDX_SOLO_MARGIN_CHECKSUM = DYDX_SOLO_MARGIN;
-const WALLET_ADDRESS_CHECKSUM = WALLET_ADDRESS;
 const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
 const USDT = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
+
+// Initialize Ethers providers for BSC and Ethereum
+const providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC);
+let providerETH;
+try {
+    providerETH = new ethers.JsonRpcProvider(PROVIDER_URL_ETH);
+} catch (e) {
+    console.error('Error: Failed to initialize Ethereum provider:', e.message);
+    process.exit(1);
+}
 
 // Uniswap ABI
 const SWAP_ABI = [
@@ -67,7 +65,8 @@ const POOL_ABI = [
 // Price tracking across exchanges
 let prices = {
     kraken: { btc_usd: 0 },
-    uniswap: { weth_usdt: 0 }
+    uniswap: { weth_usdt: 0 },
+    binance: { btc_usdt: 0 }
 };
 let priceHistory = [];
 let trades = [];
@@ -79,15 +78,16 @@ let gasPrices = { bsc: 0, eth: 0 };
 // Bot monitoring states
 let monitoringData = {
     kraken: { latency: 0, lastUpdate: 0 },
-    uniswap: { latency: 0, lastUpdate: 0 }
+    uniswap: { latency: 0, lastUpdate: 0 },
+    binance: { latency: 0, lastUpdate: 0 }
 };
 
 // WebSocket Server to broadcast live data to the dashboard
 const wss = new WebSocket.Server({ port: 8081 });
 
 wss.on('connection', (ws) => {
-    log('WebSocket client connected');
-    ws.on('close', () => log('WebSocket client disconnected'));
+    originalLog('WebSocket client connected');
+    ws.on('close', () => originalLog('WebSocket client disconnected'));
 });
 
 // Broadcast message to all connected WebSocket clients
@@ -101,26 +101,23 @@ function broadcast(type, message) {
     });
 }
 
-// Override the log function to broadcast logs to the dashboard
-const originalLog = log;
-log = (message) => {
+// Wrap the log function to broadcast logs to the dashboard
+function log(message) {
     originalLog(message);
     broadcast('log', message);
-};
+}
 
-// Override logTrade to broadcast trades
-const originalLogTrade = logTrade;
-logTrade = (trade) => {
+// Wrap logTrade to broadcast trades
+function logTrade(trade) {
     originalLogTrade(trade);
     broadcast('trade', trade);
-};
+}
 
-// Override logMonitoring to broadcast monitoring updates
-const originalLogMonitoring = logMonitoring;
-logMonitoring = (exchange, data) => {
+// Wrap logMonitoring to broadcast monitoring updates
+function logMonitoring(exchange, data) {
     originalLogMonitoring(exchange, data);
     broadcast('monitoring', { exchange, data });
-};
+}
 
 // Kraken Monitoring Bot
 const krakenSocket = new WebSocket(KRAKEN_WS);
@@ -142,8 +139,28 @@ krakenSocket.on('message', (msg) => {
         monitoringData.kraken.lastUpdate = startTime;
         monitoringData.kraken.latency = Date.now() - startTime;
         logMonitoring('Kraken', monitoringData.kraken);
+        broadcast('price', { exchange: 'Kraken', price: prices.kraken.btc_usd }); // Broadcast Kraken price
     }
 });
+
+// Binance Monitoring Bot (using REST API)
+async function monitorBinance() {
+    while (true) {
+        const startTime = Date.now();
+        try {
+            const response = await axios.get(BINANCE_API);
+            prices.binance.btc_usdt = parseFloat(response.data.price);
+            priceHistory.push({ exchange: 'Binance', pair: 'BTC/USDT', price: prices.binance.btc_usdt, timestamp: startTime });
+            monitoringData.binance.lastUpdate = startTime;
+            monitoringData.binance.latency = Date.now() - startTime;
+            logMonitoring('Binance', monitoringData.binance);
+            broadcast('price', { exchange: 'Binance', price: prices.binance.btc_usdt }); // Broadcast Binance price
+        } catch (e) {
+            log(`Binance Bot: Price fetch failed: ${e.message}`);
+        }
+        await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+}
 
 // Uniswap Monitoring Bot
 async function monitorUniswap() {
@@ -167,8 +184,10 @@ async function monitorUniswap() {
             monitoringData.uniswap.lastUpdate = startTime;
             monitoringData.uniswap.latency = Date.now() - startTime;
             logMonitoring('Uniswap', monitoringData.uniswap);
+            broadcast('price', { exchange: 'Uniswap', price: prices.uniswap.weth_usdt }); // Broadcast Uniswap price
         } catch (e) {
             log(`Uniswap Bot: Price fetch failed: ${e.message}`);
+            log(`Uniswap Bot: Error details: ${JSON.stringify(e)}`);
         }
         await new Promise(resolve => setTimeout(resolve, 5000));
     }
@@ -195,8 +214,11 @@ async function arbitrageBot() {
     while (true) {
         const krakenPrice = prices.kraken.btc_usd;
         const uniswapPrice = prices.uniswap.weth_usdt;
+        const binancePrice = prices.binance.btc_usdt;
         const spreads = [
-            { pair: 'Kraken-Uniswap', spread: Math.abs(krakenPrice - uniswapPrice) }
+            { pair: 'Kraken-Binance', spread: Math.abs(krakenPrice - binancePrice) },
+            { pair: 'Kraken-Uniswap', spread: Math.abs(krakenPrice - uniswapPrice) },
+            { pair: 'Binance-Uniswap', spread: Math.abs(binancePrice - uniswapPrice) }
         ];
 
         for (const { pair, spread } of spreads) {
@@ -212,44 +234,13 @@ async function arbitrageBot() {
     }
 }
 
-// Flash Loan Execution Bot
+// Flash Loan Execution Bot (Placeholder - Requires Wallet)
 async function executeFlashLoan(spread, buyExchange, sellExchange) {
-    const tradeAmount = ethers.parseEther('1');
-    const feeData = await providerBSC.getFeeData();
-    const gasPrice = feeData.gasPrice || ethers.parseUnits('5', 'gwei'); // Fallback gas price
-    const gasLimit = BigInt(300000);
-    const gasFeeEstimate = BigInt(gasPrice) * gasLimit;
-
-    log(`Execution Bot: Initiating flash loan for ${buyExchange} -> ${sellExchange}`);
-    try {
-        const aaveContract = new ethers.Contract(AAVE_LENDING_POOL_CHECKSUM, ['function flashLoan(address receiver, address[] assets, uint256[] amounts, uint256[] modes, address onBehalfOf, bytes calldata params, uint16 referralCode)'], walletBSC);
-        const aaveTx = await aaveContract.flashLoan(
-            WALLET_ADDRESS_CHECKSUM,
-            [WETH],
-            [tradeAmount],
-            [0],
-            WALLET_ADDRESS_CHECKSUM,
-            '0x',
-            0,
-            { gasLimit: gasLimit }
-        );
-        log(`Execution Bot: Aave flash loan initiated: ${aaveTx.hash}`);
-
-        const dydxContract = new ethers.Contract(DYDX_SOLO_MARGIN_CHECKSUM, ['function operate(Account.Info[] memory accounts, Actions.ActionArgs[] memory actions)'], walletBSC);
-        const dydxTx = await dydxContract.operate(
-            [{ owner: WALLET_ADDRESS_CHECKSUM, number: 1 }],
-            [{ actionType: 0, accountId: 0, amount: { sign: false, denomination: 0, ref: 0, value: gasFeeEstimate.toString() }, primaryMarketId: 0, secondaryMarketId: 0, otherAddress: WALLET_ADDRESS_CHECKSUM, otherAccountId: 0, data: '0x' }],
-            { gasLimit: 100000 }
-        );
-        log(`Execution Bot: dYdX flash loan for gas initiated: ${dydxTx.hash}`);
-
-        const trade = { spread, buyExchange, sellExchange, timestamp: Date.now() };
-        trades.push(trade);
-        logTrade(trade);
-        broadcast('profit', { amount: spread * 0.9 }); // Broadcast profit for the Profits Made chart (90% of spread)
-    } catch (e) {
-        log(`Execution Bot: Flash loan failed: ${e.message}`);
-    }
+    log('Execution Bot: Flash loan functionality requires a valid wallet private key. Skipping for now.');
+    const trade = { spread, buyExchange, sellExchange, timestamp: Date.now() };
+    trades.push(trade);
+    logTrade(trade);
+    broadcast('profit', { amount: spread * 0.9 }); // Broadcast profit for the Profits Made chart
 }
 
 // Decoy Bot to manipulate prices
@@ -287,6 +278,7 @@ function selfEvolvingBot() {
 async function startBots() {
     log('Starting Crypto Beast Multi-Bot System...');
     monitorUniswap();
+    monitorBinance();
     arbitrageBot();
     decoyBot();
     selfEvolvingBot();
