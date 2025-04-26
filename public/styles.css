@@ -1,42 +1,48 @@
 body {
-    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-    color: #e0e0e0;
+    background: linear-gradient(135deg, #0d0d0d 0%, #262626 100%);
+    color: #f0f0f0;
     font-family: 'Roboto Mono', monospace;
     margin: 0;
     padding: 0;
     overflow-x: hidden;
+    min-height: 100vh;
 }
 .header {
-    background: rgba(0, 0, 0, 0.8);
-    padding: 1rem;
+    background: rgba(0, 0, 0, 0.9);
+    padding: 1.5rem;
     text-align: center;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-    border-bottom: 2px solid #4a4a4a;
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.6);
+    border-bottom: 3px solid #4a4a4a;
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 .header h1 {
     margin: 0;
-    font-size: 2rem;
-    background: linear-gradient(90deg, #c084fc, #60a5fa);
+    font-size: 2.5rem;
+    background: linear-gradient(90deg, #c084fc, #60a5fa, #34d399);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: 0 0 10px rgba(192, 132, 252, 0.5);
+    text-shadow: 0 0 15px rgba(192, 132, 252, 0.7);
+    letter-spacing: 2px;
 }
 .dashboard {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-    gap: 1.5rem;
-    padding: 2rem;
-    max-width: 2000px;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 2rem;
+    padding: 3rem;
+    max-width: 2400px;
     margin: 0 auto;
+    min-height: 2000px;
 }
 .chart-container {
-    background: linear-gradient(145deg, #2d2d2d, #1f1f1f);
-    border: 2px solid #4a4a4a;
-    border-radius: 12px;
-    padding: 1rem;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.05);
+    background: linear-gradient(145deg, #2d2d2d, #1a1a1a);
+    border: 3px solid #4a4a4a;
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(255, 255, 255, 0.05);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
-    height: 350px;
+    height: 450px;
     position: relative;
     overflow: hidden;
 }
@@ -47,42 +53,60 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.05), transparent);
+    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.07), transparent);
     pointer-events: none;
+    opacity: 0.5;
 }
 .chart-container:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(255, 255, 255, 0.1);
+    transform: translateY(-8px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.1);
+}
+.chart-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    text-align: center;
+    text-shadow: 0 0 10px currentColor;
 }
 canvas {
     max-height: 100%;
     width: 100% !important;
 }
+.placeholder-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.2rem;
+    color: #888;
+    text-align: center;
+    text-shadow: 0 0 5px rgba(136, 136, 136, 0.5);
+}
 .terminal {
-    background: linear-gradient(145deg, #2d2d2d, #1f1f1f);
-    border: 2px solid #4a4a4a;
-    border-radius: 12px;
-    height: 400px;
+    background: linear-gradient(145deg, #2d2d2d, #1a1a1a);
+    border: 3px solid #4a4a4a;
+    border-radius: 15px;
+    height: 500px;
     overflow-y: auto;
-    padding: 1rem;
-    font-size: 14px;
-    line-height: 1.5;
+    padding: 1.5rem;
+    font-size: 16px;
+    line-height: 1.6;
     white-space: pre-wrap;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.05);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(255, 255, 255, 0.05);
     transition: box-shadow 0.3s ease;
 }
 .terminal:hover {
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.1);
 }
 .terminal .opportunity {
     color: #c084fc; /* Purple for arbitrage opportunities */
-    text-shadow: 0 0 5px rgba(192, 132, 252, 0.5);
+    text-shadow: 0 0 8px rgba(192, 132, 252, 0.7);
 }
 .terminal .trade {
     color: #34d399; /* Green for trades */
-    text-shadow: 0 0 5px rgba(52, 211, 153, 0.5);
+    text-shadow: 0 0 8px rgba(52, 211, 153, 0.7);
 }
 .terminal .info {
     color: #60a5fa; /* Blue for info messages */
-    text-shadow: 0 0 5px rgba(96, 165, 250, 0.5);
+    text-shadow: 0 0 8px rgba(96, 165, 250, 0.7);
 }
