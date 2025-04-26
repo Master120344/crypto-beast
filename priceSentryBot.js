@@ -1,7 +1,6 @@
 // File: priceSentryBot.js
 // PriceSentryBot: Elite price monitoring bot for multiple exchanges
 // Fetches prices from Kraken (WebSocket) and PancakeSwap (BNB Chain), broadcasts to other bots via WebSocket
-// Designed to link with SpreadEagleBot, TradeMasterBot, DecoyKrakenBot, DecoyCoinbaseBot, and EvolveGeniusBot
 
 require('dotenv').config();
 const WebSocket = require('ws');
@@ -10,21 +9,21 @@ const axios = require('axios');
 
 // Configuration
 const KRAKEN_WS_URL = 'wss://ws.kraken.com';
-const PROVIDER_URL_BSC = 'https://bsc-dataseed.binance.org/'; // Primary BNB Chain provider
-const FALLBACK_PROVIDER_URL_BSC = 'https://bsc-dataseed1.defibit.io/'; // Fallback BNB Chain provider
-const WEBSOCKET_PORT = 8081; // Local WebSocket server port for broadcasting prices
-const PRICE_FETCH_INTERVAL = 10000; // Fetch prices every 10 seconds to reduce API rate limiting
-const MAX_CONTRACT_RETRIES = 3; // Maximum retries for contract price fetch per provider
-const MAX_TOTAL_RETRIES = 6; // Total retries across both providers before falling back to API
-const API_RETRY_DELAY = 5000; // Initial delay for API retries (5 seconds)
-const API_MAX_RETRIES = 3; // Maximum API retries
+const PROVIDER_URL_BSC = 'https://bsc-dataseed.binance.org/';
+const FALLBACK_PROVIDER_URL_BSC = 'https://bsc-dataseed1.defibit.io/';
+const WEBSOCKET_PORT = 8081;
+const PRICE_FETCH_INTERVAL = 10000;
+const MAX_CONTRACT_RETRIES = 3;
+const MAX_TOTAL_RETRIES = 6;
+const API_RETRY_DELAY = 5000;
+const API_MAX_RETRIES = 3;
 
-// PancakeSwap Pair (BNB Chain) - Hardcoded WBNB/BTCB pair address
-const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c'; // Wrapped BNB (lowercase)
-const BTCB = '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9'; // BTCB (Binance-Peg Bitcoin Token, lowercase)
-const WBNB_BTCB_PAIR = '0x61eb789d75a95caa3ff50ed7e47b96c132fec082'; // Correct WBNB/BTCB pair address on PancakeSwap V3
+// PancakeSwap Pair (BNB Chain)
+const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c';
+const BTCB = '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9';
+const WBNB_BTCB_PAIR = '0x61eb789d75a95caa3ff50ed7e47b96c132fec082';
 
-// PancakeSwap Pair ABI (simplified)
+// PancakeSwap Pair ABI
 const PAIR_ABI = [
     {
         "constant": true,
@@ -57,24 +56,24 @@ const PAIR_ABI = [
 let providerBSC = new ethers.providers.JsonRpcProvider(PROVIDER_URL_BSC);
 let fallbackProviderBSC = new ethers.providers.JsonRpcProvider(FALLBACK_PROVIDER_URL_BSC);
 let pairContract = new ethers.Contract(WBNB_BTCB_PAIR, PAIR_ABI, providerBSC);
-let currentProvider = 'primary'; // Track which provider is in use
+let currentProvider = 'primary';
 
-// Prices for exchanges (Kraken, PancakeSwap)
+// Prices for exchanges
 let prices = {
     kraken: { btc_usd: 0, bnb_usd: 0 },
     pancakeswap: { btc_bnb: 0 }
 };
 
-// WebSocket server to broadcast price data to other bots
+// WebSocket server
 const wsServer = new WebSocket.Server({ port: WEBSOCKET_PORT });
 
-// Log messages with timestamp for debugging and monitoring
+// Log messages
 function log(message) {
     const timestamp = new Date().toISOString();
     console.log(`${timestamp} - PriceSentryBot: ${message}`);
 }
 
-// Broadcast price data to all connected WebSocket clients
+// Broadcast price data
 function broadcastPrice(exchange, price) {
     const timestamp = new Date().toISOString();
     const data = JSON.stringify({ type: 'price', message: { exchange, price }, timestamp });
@@ -85,7 +84,14 @@ function broadcastPrice(exchange, price) {
     });
 }
 
-// Broadcast monitoring data (latency, last update) to all connected WebSocket clients
+// Broadcast all prices periodically
+function broadcastAllPrices() {
+    if (prices.kraken.btc_usd > 0) broadcastPrice('kraken', prices.kraken.btc_usd);
+    if (prices.kraken.bnb_usd > 0) broadcastPrice('kraken_bnb', prices.kraken.bnb_usd);
+    if (prices.pancakeswap.btc_bnb > 0) broadcastPrice('pancakeswap', prices.pancakeswap.btc_bnb);
+}
+
+// Broadcast monitoring data
 function broadcastMonitoring(exchange, data) {
     const timestamp = new Date().toISOString();
     const dataPayload = JSON.stringify({ type: 'monitoring', message: { exchange, data }, timestamp });
@@ -100,109 +106,92 @@ function broadcastMonitoring(exchange, data) {
 async function fetchPancakeSwapPriceFromContract(attempt = 1) {
     try {
         log(`Fetching PancakeSwap price via contract (attempt ${attempt}) using ${currentProvider} provider...`);
-
-        // Sequential calls to avoid potential issues
         log('Fetching token0...');
         const token0 = await pairContract.token0();
         log('Fetching token1...');
         const token1 = await pairContract.token1();
         log('Fetching reserves...');
         const reserves = await pairContract.getReserves();
-
         log(`Fetched pair data: token0=${token0}, token1=${token1}`);
-
         const reserve0 = Number(ethers.utils.formatEther(reserves[0]));
         const reserve1 = Number(ethers.utils.formatEther(reserves[1]));
-
         log(`Reserves: reserve0=${reserve0}, reserve1=${reserve1}`);
-
-        // Determine which token is WBNB and which is BTCB
         const isWBNBToken0 = token0.toLowerCase() === WBNB.toLowerCase();
         const reserveWBNB = isWBNBToken0 ? reserve0 : reserve1;
         const reserveBTCB = isWBNBToken0 ? reserve1 : reserve0;
-
-        const btcBnbPrice = reserveWBNB / reserveBTCB; // BTC/BNB price
+        const btcBnbPrice = reserveWBNB / reserveBTCB;
         prices.pancakeswap.btc_bnb = btcBnbPrice;
         log(`PancakeSwap BTC/BNB Price: ${btcBnbPrice} BNB`);
         broadcastPrice('pancakeswap', btcBnbPrice);
-
-        // Reset provider to primary if using fallback
         if (currentProvider === 'fallback') {
             providerBSC = new ethers.providers.JsonRpcProvider(PROVIDER_URL_BSC);
             pairContract = new ethers.Contract(WBNB_BTCB_PAIR, PAIR_ABI, providerBSC);
             currentProvider = 'primary';
             log('Switched back to primary BNB Chain provider');
         }
-
-        return true; // Success
+        return true;
     } catch (e) {
         log(`PancakeSwap contract price fetch error (attempt ${attempt}): ${e.message}`);
         if (attempt < MAX_CONTRACT_RETRIES) {
             log('Retrying with current provider...');
-            await new Promise(resolve => setTimeout(resolve, 2000)); // Delay before retry
+            await new Promise(resolve => setTimeout(resolve, 2000));
             return await fetchPancakeSwapPriceFromContract(attempt + 1);
         }
-        return false; // All retries for this provider failed
+        return false;
     }
 }
 
-// Fetch PancakeSwap BTC/BNB price via API (fallback) with retry mechanism
+// Fetch PancakeSwap price via API (fallback)
 async function fetchPancakeSwapPriceFromAPI(attempt = 1) {
     try {
         log(`Fetching PancakeSwap price via API (attempt ${attempt})...`);
         const response = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,binancecoin&vs_currencies=usd');
         const btcUsdPrice = response.data.bitcoin.usd;
         const bnbUsdPrice = response.data.binancecoin.usd;
-        const btcBnbPrice = btcUsdPrice / bnbUsdPrice; // BTC/BNB price
+        const btcBnbPrice = btcUsdPrice / bnbUsdPrice;
         prices.pancakeswap.btc_bnb = btcBnbPrice;
         log(`PancakeSwap BTC/BNB Price (via API): ${btcBnbPrice} BNB`);
         broadcastPrice('pancakeswap', btcBnbPrice);
-        return true; // Success
+        return true;
     } catch (e) {
         log(`PancakeSwap API price fetch error (attempt ${attempt}): ${e.message}`);
         if (e.response && e.response.status === 429 && attempt < API_MAX_RETRIES) {
-            const delay = API_RETRY_DELAY * Math.pow(2, attempt - 1); // Exponential backoff
+            const delay = API_RETRY_DELAY * Math.pow(2, attempt - 1);
             log(`Rate limited, retrying in ${delay / 1000} seconds...`);
             await new Promise(resolve => setTimeout(resolve, delay));
             return await fetchPancakeSwapPriceFromAPI(attempt + 1);
         }
-        return false; // API failed after retries
+        return false;
     }
 }
 
-// Fetch PancakeSwap BTC/BNB price (try contract first, then API)
+// Fetch PancakeSwap price (contract first, then API)
 async function fetchPancakeSwapPrice() {
     let totalAttempts = 0;
     let useFallbackProvider = false;
-
     while (totalAttempts < MAX_TOTAL_RETRIES) {
         if (totalAttempts >= MAX_CONTRACT_RETRIES && !useFallbackProvider) {
-            log('Switching to fallback BNB Chain provider after initial retries...');
+            log('Switching to fallback BNB Chain provider...');
             providerBSC = fallbackProviderBSC;
             pairContract = new ethers.Contract(WBNB_BTCB_PAIR, PAIR_ABI, providerBSC);
             currentProvider = 'fallback';
             useFallbackProvider = true;
         }
-
         const success = await fetchPancakeSwapPriceFromContract(1);
-        if (success) return; // Successfully fetched via contract
-
+        if (success) return;
         totalAttempts += MAX_CONTRACT_RETRIES;
         log(`Total contract attempts: ${totalAttempts}/${MAX_TOTAL_RETRIES}`);
     }
-
-    log(`Failed to fetch price from contract after ${MAX_TOTAL_RETRIES} total attempts, falling back to API...`);
+    log(`Failed to fetch price from contract after ${MAX_TOTAL_RETRIES} attempts, falling back to API...`);
     await fetchPancakeSwapPriceFromAPI();
 }
 
-// Kraken WebSocket client for real-time price data
+// Kraken WebSocket client
 let krakenWsClient;
 function connectKrakenWebSocket() {
     krakenWsClient = new WebSocket(KRAKEN_WS_URL);
-
     krakenWsClient.on('open', () => {
         log('Kraken WebSocket connection established');
-        // Subscribe to BTC/USD and BNB/USD ticker
         const subscribeMessage = JSON.stringify({
             event: 'subscribe',
             pair: ['XBT/USD', 'BNB/USD'],
@@ -210,7 +199,6 @@ function connectKrakenWebSocket() {
         });
         krakenWsClient.send(subscribeMessage);
     });
-
     krakenWsClient.on('message', (data) => {
         try {
             const message = JSON.parse(data);
@@ -233,11 +221,7 @@ function connectKrakenWebSocket() {
             log(`Kraken WebSocket message error: ${e.message}`);
         }
     });
-
-    krakenWsClient.on('error', (error) => {
-        log(`Kraken WebSocket error: ${error.message}`);
-    });
-
+    krakenWsClient.on('error', (error) => log(`Kraken WebSocket error: ${error.message}`));
     krakenWsClient.on('close', () => {
         log('Kraken WebSocket connection closed. Reconnecting...');
         setTimeout(connectKrakenWebSocket, 5000);
@@ -248,26 +232,18 @@ function connectKrakenWebSocket() {
 async function startPriceSentryBot() {
     log('PriceSentryBot starting...');
     log('Fetching prices from Kraken (WebSocket) and PancakeSwap (BNB Chain)');
-
-    // Start WebSocket server for broadcasting to other bots
     wsServer.on('connection', (ws) => {
         log('WebSocket client connected');
         ws.on('error', (error) => log(`WebSocket server error: ${error.message}`));
     });
-
-    // Connect to Kraken WebSocket
     connectKrakenWebSocket();
-
-    // Fetch PancakeSwap prices at intervals
     setInterval(fetchPancakeSwapPrice, PRICE_FETCH_INTERVAL);
-
-    // Monitor latency and updates for Kraken and PancakeSwap
     setInterval(() => {
         const now = Date.now();
         broadcastMonitoring('Kraken', { latency: 0, lastUpdate: now });
         broadcastMonitoring('PancakeSwap', { latency: 0, lastUpdate: now });
+        broadcastAllPrices(); // Add periodic broadcast of all prices
     }, 10000);
 }
 
-// Execute the bot
 startPriceSentryBot();
