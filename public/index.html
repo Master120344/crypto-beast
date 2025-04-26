@@ -1,9 +1,208 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crypto Beast Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts for Roboto Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: #e0e0e0;
+            font-family: 'Roboto Mono', monospace;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        .header {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2rem;
+            background: linear-gradient(90deg, #c084fc, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            padding: 2rem;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        .chart-container {
+            background: #2d2d2d;
+            border: 2px solid #4a4a4a;
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            height: 350px;
+        }
+        .chart-container:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+        }
+        canvas {
+            max-height: 100%;
+            width: 100% !important;
+        }
+        .terminal {
+            background: #2d2d2d;
+            border: 2px solid #4a4a4a;
+            border-radius: 12px;
+            height: 400px;
+            overflow-y: auto;
+            padding: 1rem;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: box-shadow 0.3s ease;
+        }
+        .terminal:hover {
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+        }
+        .terminal .opportunity {
+            color: #c084fc; /* Purple for arbitrage opportunities */
+        }
+        .terminal .trade {
+            color: #34d399; /* Green for trades */
+        }
+        .terminal .info {
+            color: #60a5fa; /* Blue for info messages */
+        }
+    </style>
 </head>
 <body>
-    <h1>Crypto Beast Dashboard</h1>
+    <div class="header">
+        <h1>Crypto Beast Dashboard</h1>
+    </div>
+    <div class="dashboard">
+        <!-- Placeholder for Chart 1: Arbitrage Opportunities -->
+        <div class="chart-container">
+            <h2 class="text-lg font-semibold mb-2 text-purple-400">Arbitrage Opportunities</h2>
+            <canvas id="opportunitiesChart"></canvas>
+        </div>
+        <!-- Placeholder for Chart 2: Profits Made -->
+        <div class="chart-container">
+            <h2 class="text-lg font-semibold mb-2 text-green-400">Profits Made</h2>
+            <canvas id="profitsChart"></canvas>
+        </div>
+        <!-- Placeholder for Chart 3: Exchanges Monitored -->
+        <div class="chart-container">
+            <h2 class="text-lg font-semibold mb-2 text-blue-400">Exchanges Monitored</h2>
+            <canvas id="exchangesChart"></canvas>
+        </div>
+        <!-- Placeholder for Chart 4: Bot Activity -->
+        <div class="chart-container">
+            <h2 class="text-lg font-semibold mb-2 text-yellow-400">Bot Activity</h2>
+            <canvas id="botActivityChart"></canvas>
+        </div>
+        <!-- Placeholder for Chart 5: Gas Prices -->
+        <div class="chart-container">
+            <h2 class="text-lg font-semibold mb-2 text-green-400">Gas Prices</h2>
+            <canvas id="gasPricesChart"></canvas>
+        </div>
+        <!-- Placeholder for Chart 6: Trade Frequency -->
+        <div class="chart-container">
+            <h2 class="text-lg font-semibold mb-2 text-red-400">Trade Frequency</h2>
+            <canvas id="tradeFrequencyChart"></canvas>
+        </div>
+        <!-- Placeholder for Chart 7: Spread Trends -->
+        <div class="chart-container">
+            <h2 class="text-lg font-semibold mb-2 text-yellow-400">Spread Trends</h2>
+            <canvas id="spreadTrendsChart"></canvas>
+        </div>
+        <!-- Placeholder for Chart 8: Exchange Latency -->
+        <div class="chart-container">
+            <h2 class="text-lg font-semibold mb-2 text-lime-400">Exchange Latency</h2>
+            <canvas id="exchangeLatencyChart"></canvas>
+        </div>
+        <!-- Placeholder for Chart 9: Profit Trends -->
+        <div class="chart-container">
+            <h2 class="text-lg font-semibold mb-2 text-green-400">Profit Trends</h2>
+            <canvas id="profitTrendsChart"></canvas>
+        </div>
+        <!-- Placeholder for Chart 10: Bot Status -->
+        <div class="chart-container">
+            <h2 class="text-lg font-semibold mb-2 text-yellow-400">Bot Status</h2>
+            <canvas id="botStatusChart"></canvas>
+        </div>
+        <!-- Terminal Display -->
+        <div class="lg:col-span-4">
+            <div class="terminal" id="terminal">
+                <span class="info">[INFO] Connecting to Crypto Beast System...</span><br>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Connect to WebSocket server
+        const ws = new WebSocket('wss://crypto-beast-ws.onrender.com');
+
+        ws.onopen = () => {
+            console.log('Connected to WebSocket server');
+            const terminal = document.getElementById('terminal');
+            const span = document.createElement('span');
+            span.className = 'info';
+            span.textContent = `[${new Date().toISOString()}] Connected to WebSocket server`;
+            terminal.appendChild(span);
+            terminal.appendChild(document.createElement('br'));
+            terminal.scrollTop = terminal.scrollHeight;
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            const { type, message, timestamp } = data;
+
+            // Update Terminal Display
+            const terminal = document.getElementById('terminal');
+            const span = document.createElement('span');
+            let className = 'info';
+            if (type === 'log' && message.includes('Arbitrage opportunity')) {
+                className = 'opportunity';
+            } else if (type === 'trade') {
+                className = 'trade';
+            }
+            span.className = className;
+            span.textContent = `[${timestamp}] ${message}`;
+            terminal.appendChild(span);
+            terminal.appendChild(document.createElement('br'));
+            terminal.scrollTop = terminal.scrollHeight;
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            const terminal = document.getElementById('terminal');
+            const span = document.createElement('span');
+            span.className = 'info';
+            span.textContent = `[${new Date().toISOString()}] WebSocket error: ${error.message}`;
+            terminal.appendChild(span);
+            terminal.appendChild(document.createElement('br'));
+            terminal.scrollTop = terminal.scrollHeight;
+        };
+
+        ws.onclose = () => {
+            console.log('Disconnected from WebSocket server');
+            const terminal = document.getElementById('terminal');
+            const span = document.createElement('span');
+            span.className = 'info';
+            span.textContent = `[${new Date().toISOString()}] Disconnected from WebSocket server`;
+            terminal.appendChild(span);
+            terminal.appendChild(document.createElement('br'));
+            terminal.scrollTop = terminal.scrollHeight;
+        };
+    </script>
 </body>
 </html>
