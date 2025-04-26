@@ -5,14 +5,14 @@
 
 require('dotenv').config();
 const WebSocket = require('ws');
-const Web3 = require('web3');
+const { ethers } = require('ethers');
 
 // Configuration
 const WEBSOCKET_SERVER_URL = 'ws://localhost:8081'; // WebSocket server hosted by PriceSentryBot
 const SPREAD_EAGLE_WEBSOCKET_URL = 'ws://localhost:8082'; // WebSocket server hosted by SpreadEagleBot
 const PROVIDER_URL_BSC = 'https://bsc-dataseed.binance.org/';
 const FLASH_LOAN_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000'; // Dummy address
-const FLASH_LOAN_AMOUNT = Web3.utils.toWei('1', 'ether'); // 1 BNB for flash loan (adjust as needed)
+const FLASH_LOAN_AMOUNT = ethers.utils.parseEther('1'); // 1 BNB for flash loan (adjust as needed)
 const WBNB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'; // Wrapped BNB
 const BTCB = '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9'; // BTCB (Binance-Peg Bitcoin Token)
 
@@ -31,12 +31,10 @@ const FLASH_LOAN_ABI = [
     }
 ];
 
-// Initialize Web3 provider
-const web3 = new Web3(PROVIDER_URL_BSC);
-const walletPrivateKey = process.env.WALLET_PRIVATE_KEY;
-const account = web3.eth.accounts.privateKeyToAccount(walletPrivateKey);
-web3.eth.accounts.wallet.add(account);
-const flashLoanContract = new web3.eth.Contract(FLASH_LOAN_ABI, FLASH_LOAN_CONTRACT_ADDRESS);
+// Initialize ethers provider
+const provider = new ethers.providers.JsonRpcProvider(PROVIDER_URL_BSC);
+const wallet = new ethers.Wallet(process.env.WALLET_PRIVATE_KEY, provider);
+const flashLoanContract = new ethers.Contract(FLASH_LOAN_CONTRACT_ADDRESS, FLASH_LOAN_ABI, wallet);
 
 // Price tracking for Kraken and PancakeSwap (received from PriceSentryBot)
 let prices = {
@@ -63,7 +61,6 @@ function setupPriceSentryWebSocket() {
 
     priceSentryWsClient.on('message', async (message) => {
         try {
-            // Ensure the client is fully open before processing messages
             if (priceSentryWsClient.readyState !== WebSocket.OPEN) {
                 log('Received message but client is not fully open, ignoring...');
                 return;
@@ -109,7 +106,6 @@ function setupSpreadEagleWebSocket() {
 
     spreadEagleWsClient.on('message', async (message) => {
         try {
-            // Ensure the client is fully open before processing messages
             if (spreadEagleWsClient.readyState !== WebSocket.OPEN) {
                 log('Received SpreadEagleBot message but client is not fully open, ignoring...');
                 return;
@@ -164,18 +160,19 @@ async function executeDoubleFlashLoanTrade(spread, opportunity) {
         const tokenA = WBNB;
         const tokenB = BTCB;
 
-        const tx = await flashLoanContract.methods.executeFlashLoan(
+        const tx = await flashLoanContract.executeFlashLoan(
             FLASH_LOAN_AMOUNT,
             tokenA,
-            tokenB
-        ).send({
-            from: account.address,
-            gas: 1000000,
-            gasPrice: Web3.utils.toWei('5', 'gwei')
-        });
+            tokenB,
+            {
+                gasLimit: 1000000,
+                gasPrice: ethers.utils.parseUnits('5', 'gwei')
+            }
+        );
 
-        log(`Trade executed successfully: ${tx.transactionHash}`);
-        broadcastTrade({ spread, opportunity, txHash: tx.transactionHash });
+        const receipt = await tx.wait();
+        log(`Trade executed successfully: ${receipt.transactionHash}`);
+        broadcastTrade({ spread, opportunity, txHash: receipt.transactionHash });
 
         // Update monitoring data
         monitoringData.tradeMaster.lastUpdate = startTime;
