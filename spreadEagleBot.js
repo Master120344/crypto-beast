@@ -51,8 +51,8 @@ function setupWebSocket() {
                 if (exchange.toLowerCase() === 'kraken') {
                     prices.kraken.btc_usd = price;
                     log(`Received Kraken BTC/USD Price: $${price}`);
-                } else if (exchange.toLowerCase() === 'kraken_bnb' && price > 0) { // Only update if price is valid
-                    prices.kraken.bnb_usd = price;
+                } else if (exchange.toLowerCase() === 'kraken_bnb') {
+                    prices.kraken.bnb_usd = price; // Persist the last known price
                     log(`Received Kraken BNB/USD Price: $${price}`);
                 } else if (exchange.toLowerCase() === 'pancakeswap') {
                     prices.pancakeswap.btc_bnb = price;
