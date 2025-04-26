@@ -246,6 +246,7 @@ async function executeFlashLoan(spread, buyExchange, sellExchange) {
         const trade = { spread, buyExchange, sellExchange, timestamp: Date.now() };
         trades.push(trade);
         logTrade(trade);
+        broadcast('profit', { amount: spread * 0.9 }); // Broadcast profit for the Profits Made chart (90% of spread)
     } catch (e) {
         log(`Execution Bot: Flash loan failed: ${e.message}`);
     }
