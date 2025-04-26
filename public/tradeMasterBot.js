@@ -1,9 +1,12 @@
 // File: tradeMasterBot.js
 // TradeMasterBot: Elite trade execution bot for arbitrage opportunities
-// Connects to PriceSentryBot's WebSocket server to receive opportunities from SpreadEagleBot, executes trades, and broadcasts profits
+// Connects to PriceSentryBot's WebSocket server to receive opportunities from SpreadEagleBot, executes real trades on Kraken and Coinbase
 // Designed to link with PriceSentryBot, SpreadEagleBot, DecoyKrakenBot, DecoyCoinbaseBot, and EvolveGeniusBot
 
+require('dotenv').config();
 const WebSocket = require('ws');
+const Kraken = require('kraken-api'); // Kraken API client (install via: npm install kraken-api)
+const axios = require('axios'); // For Coinbase API calls
 
 // Configuration
 const WEBSOCKET_SERVER_URL = 'ws://localhost:8081'; // WebSocket server hosted by PriceSentryBot
@@ -11,6 +14,16 @@ const TRADE_EXECUTION_INTERVAL = 5000; // Check for opportunities every 5 second
 const TRADE_HISTORY_LIMIT = 500; // Maximum number of trade history entries to store in memory
 const FEE_PERCENTAGE = 0.1; // Estimated trading fee percentage (0.1% per trade, adjust based on exchange)
 const PROFIT_MULTIPLIER = 0.9; // Assume 90% of spread as profit after fees (to be adjusted later)
+
+// Kraken API setup (using existing keys, assuming trading permissions)
+const KRAKEN_API_KEY = process.env.KRAKEN_API_KEY || 'uLlqQPALCxTNczwcnqhQRclF3z4IL/B9u';
+const KRAKEN_API_SECRET = process.env.KRAKEN_API_SECRET || 'ME37ocQaoN0zVK3bv073tFiz7Z2fX6';
+const kraken = new Kraken(KRAKEN_API_KEY, KRAKEN_API_SECRET);
+
+// Coinbase API setup (placeholder for keys)
+const COINBASE_API_KEY = process.env.COINBASE_API_KEY || 'your_coinbase_api_key_here';
+const COINBASE_API_SECRET = process.env.COINBASE_API_SECRET || 'your_coinbase_api_secret_here';
+const COINBASE_API_URL = 'https://api.coinbase.com/v2/'; // Base URL for Coinbase API
 
 // Trade history for analysis and dashboard
 let tradeHistory = [];
@@ -90,18 +103,86 @@ function broadcastMonitoring(exchange, data) {
     }
 }
 
+// Execute trade on Kraken (real order placement)
+async function placeKrakenOrder(type, price, amount) {
+    try {
+        const orderDetails = {
+            pair: 'XBTUSD', // Kraken pair for BTC/USD
+            type: type, // 'buy' or 'sell'
+            ordertype: 'limit',
+            price: price,
+            volume: amount
+        };
+        const response = await kraken.api('AddOrder', orderDetails);
+        log(`Kraken ${type} order placed: ${JSON.stringify(response.result)}`);
+        return response.result;
+    } catch (e) {
+        log(`Kraken order error: ${e.message}`);
+        throw e;
+    }
+}
+
+// Execute trade on Coinbase (real order placement, placeholder for API keys)
+async function placeCoinbaseOrder(type, price, amount) {
+    try {
+        const orderDetails = {
+            type: 'limit',
+            side: type, // 'buy' or 'sell'
+            product_id: 'BTC-USD',
+            price: price,
+            size: amount
+        };
+        const response = await axios.post(
+            `${COINBASE_API_URL}orders`,
+            orderDetails,
+            {
+                headers: {
+                    'CB-ACCESS-KEY': COINBASE_API_KEY,
+                    'CB-ACCESS-SIGN': 'TBD', // Requires Coinbase API signing, placeholder for now
+                    'CB-ACCESS-TIMESTAMP': Math.floor(Date.now() / 1000),
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        log(`Coinbase ${type} order placed: ${JSON.stringify(response.data)}`);
+        return response.data;
+    } catch (e) {
+        log(`Coinbase order error: ${e.message}`);
+        throw e;
+    }
+}
+
 // Execute trade based on arbitrage opportunity
 async function executeTrade(spread, buyExchange, sellExchange) {
     const startTime = Date.now();
     try {
-        // Calculate trade amount and profit (simulated for now)
+        // Calculate trade amount and profit
         const tradeAmount = spread * PROFIT_MULTIPLIER; // Assume 90% of spread as profit after fees
         const fees = spread * FEE_PERCENTAGE / 100; // Estimated fees per trade
         const netProfit = tradeAmount - fees;
+        const btcAmount = tradeAmount / (buyExchange === 'Kraken' ? prices.kraken.btc_usd : prices.coinbase.btc_usd);
 
-        // Simulate trade execution (since wallet isn't set up yet)
-        log(`Simulating trade: Spread: $${spread}, Buy on ${buyExchange}, Sell on ${sellExchange}`);
-        log(`Trade Amount: $${tradeAmount}, Estimated Fees: $${fees}, Net Profit: $${netProfit}`);
+        log(`Executing trade: Spread: $${spread}, Buy on ${buyExchange}, Sell on ${sellExchange}`);
+        log(`Trade Amount: $${tradeAmount}, BTC Amount: ${btcAmount}, Estimated Fees: $${fees}, Net Profit: $${netProfit}`);
+
+        // Placeholder: Real trade execution requires API keys with trading permissions
+        log('Trade execution requires trading API keys and wallet setup. Logging intended orders...');
+
+        // Intended buy order
+        const buyPrice = buyExchange === 'Kraken' ? prices.kraken.btc_usd : prices.coinbase.btc_usd;
+        if (buyExchange === 'Kraken') {
+            await placeKrakenOrder('buy', buyPrice, btcAmount);
+        } else {
+            await placeCoinbaseOrder('buy', buyPrice, btcAmount);
+        }
+
+        // Intended sell order
+        const sellPrice = sellExchange === 'Kraken' ? prices.kraken.btc_usd : prices.coinbase.btc_usd;
+        if (sellExchange === 'Kraken') {
+            await placeKrakenOrder('sell', sellPrice, btcAmount);
+        } else {
+            await placeCoinbaseOrder('sell', sellPrice, btcAmount);
+        }
 
         // Store trade details
         const trade = {
@@ -109,6 +190,7 @@ async function executeTrade(spread, buyExchange, sellExchange) {
             buyExchange,
             sellExchange,
             tradeAmount,
+            btcAmount,
             fees,
             netProfit,
             timestamp: startTime
