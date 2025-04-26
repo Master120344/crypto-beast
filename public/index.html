@@ -10,79 +10,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Google Fonts for Roboto Mono -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-            color: #e0e0e0;
-            font-family: 'Roboto Mono', monospace;
-            margin: 0;
-            padding: 0;
-            overflow-x: hidden;
-        }
-        .header {
-            background: rgba(0, 0, 0, 0.8);
-            padding: 1rem;
-            text-align: center;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 2rem;
-            background: linear-gradient(90deg, #c084fc, #60a5fa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .dashboard {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
-            padding: 2rem;
-            max-width: 1800px;
-            margin: 0 auto;
-        }
-        .chart-container {
-            background: #2d2d2d;
-            border: 2px solid #4a4a4a;
-            border-radius: 12px;
-            padding: 1rem;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            height: 350px;
-        }
-        .chart-container:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-        }
-        canvas {
-            max-height: 100%;
-            width: 100% !important;
-        }
-        .terminal {
-            background: #2d2d2d;
-            border: 2px solid #4a4a4a;
-            border-radius: 12px;
-            height: 400px;
-            overflow-y: auto;
-            padding: 1rem;
-            font-size: 14px;
-            line-height: 1.5;
-            white-space: pre-wrap;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            transition: box-shadow 0.3s ease;
-        }
-        .terminal:hover {
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-        }
-        .terminal .opportunity {
-            color: #c084fc; /* Purple for arbitrage opportunities */
-        }
-        .terminal .trade {
-            color: #34d399; /* Green for trades */
-        }
-        .terminal .info {
-            color: #60a5fa; /* Blue for info messages */
-        }
-    </style>
+    <!-- Link to styles.css -->
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="header">
