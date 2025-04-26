@@ -20,9 +20,9 @@ const API_RETRY_DELAY = 5000; // Initial delay for API retries (5 seconds)
 const API_MAX_RETRIES = 3; // Maximum API retries
 
 // PancakeSwap Pair (BNB Chain) - Hardcoded WBNB/BTCB pair address
-const WBNB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'; // Wrapped BNB
-const BTCB = '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9'; // BTCB (Binance-Peg Bitcoin Token)
-const WBNB_BTCB_PAIR = '0x61eb789d75a98caa37698ff9355f7b1d6ecef95'; // Updated to lowercase to fix checksum error
+const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c'; // Wrapped BNB (lowercase)
+const BTCB = '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9'; // BTCB (Binance-Peg Bitcoin Token, lowercase)
+const WBNB_BTCB_PAIR = '0x61eb789d75a95caa3ff50ed7e47b96c132fec082'; // Correct WBNB/BTCB pair address on PancakeSwap V3
 
 // PancakeSwap Pair ABI (simplified)
 const PAIR_ABI = [

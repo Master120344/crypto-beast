@@ -13,8 +13,8 @@ const SPREAD_EAGLE_WEBSOCKET_URL = 'ws://localhost:8082'; // WebSocket server ho
 const PROVIDER_URL_BSC = 'https://bsc-dataseed.binance.org/';
 const FLASH_LOAN_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000'; // Dummy address
 const FLASH_LOAN_AMOUNT = ethers.utils.parseEther('1'); // 1 BNB for flash loan (adjust as needed)
-const WBNB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'; // Wrapped BNB
-const BTCB = '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9'; // BTCB (Binance-Peg Bitcoin Token)
+const WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c'; // Wrapped BNB (lowercase)
+const BTCB = '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9'; // BTCB (Binance-Peg Bitcoin Token, lowercase)
 
 // Flash Loan ABI (simplified)
 const FLASH_LOAN_ABI = [
