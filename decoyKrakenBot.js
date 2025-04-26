@@ -29,9 +29,9 @@ wsClient.on('open', () => {
 
 wsClient.on('message', async (message) => {
     try {
-        const data = JSON.parse(message);
+        const data = JSON.parse(message.toString());
         if (data.type === 'price' && data.message.exchange.toLowerCase() === 'kraken') {
-            krakenPrice = data.message.price;
+            krakenPrice = parseFloat(data.message.price);
             log(`Received Kraken BTC/USD Price: $${krakenPrice}`);
         }
     } catch (e) {

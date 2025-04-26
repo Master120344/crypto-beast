@@ -6,6 +6,7 @@
 require('dotenv').config();
 const WebSocket = require('ws');
 const { ethers } = require('ethers');
+const axios = require('axios');
 
 // Configuration
 const KRAKEN_WS_URL = 'wss://ws.kraken.com';
@@ -62,10 +63,9 @@ const PAIR_ABI = [
     }
 ];
 
-// Initialize providers with fallback, disable ENS resolution
-const providerConfig = { disableEns: true };
-let providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, 56, providerConfig);
-let fallbackProviderBSC = new ethers.JsonRpcProvider(FALLBACK_PROVIDER_URL_BSC, 56, providerConfig);
+// Initialize providers with fallback
+let providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, 56);
+let fallbackProviderBSC = new ethers.JsonRpcProvider(FALLBACK_PROVIDER_URL_BSC, 56);
 let pancakeSwapFactory = new ethers.Contract(PANCAKESWAP_FACTORY, FACTORY_ABI, providerBSC);
 let pairContract;
 
@@ -111,6 +111,7 @@ async function fetchPancakeSwapPrice(attempt = 1) {
     try {
         log(`Fetching PancakeSwap price (attempt ${attempt})...`);
         if (!pairContract) {
+            log(`Calling getPair(${WBNB}, ${BTCB}) on factory contract...`);
             const pairAddress = await pancakeSwapFactory.getPair(WBNB, BTCB);
             log(`Fetched pair address: ${pairAddress}`);
             if (pairAddress === ethers.ZeroAddress) {
@@ -119,11 +120,13 @@ async function fetchPancakeSwapPrice(attempt = 1) {
             pairContract = new ethers.Contract(pairAddress, PAIR_ABI, providerBSC);
         }
 
-        const [token0, token1, reserves] = await Promise.all([
-            pairContract.token0(),
-            pairContract.token1(),
-            pairContract.getReserves()
-        ]);
+        // Sequential calls to avoid potential issues with Promise.all
+        log('Fetching token0...');
+        const token0 = await pairContract.token0();
+        log('Fetching token1...');
+        const token1 = await pairContract.token1();
+        log('Fetching reserves...');
+        const reserves = await pairContract.getReserves();
 
         log(`Fetched pair data: token0=${token0}, token1=${token1}`);
 
@@ -144,7 +147,7 @@ async function fetchPancakeSwapPrice(attempt = 1) {
 
         // Reset provider to primary if using fallback
         if (providerBSC !== providerBSC) {
-            providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, 56, providerConfig);
+            providerBSC = new ethers.JsonRpcProvider(PROVIDER_URL_BSC, 56);
             pancakeSwapFactory = new ethers.Contract(PANCAKESWAP_FACTORY, FACTORY_ABI, providerBSC);
             pairContract = undefined;
             log('Switched back to primary BNB Chain provider');
