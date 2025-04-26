@@ -20,53 +20,63 @@
     <div class="dashboard">
         <!-- Placeholder for Chart 1: Arbitrage Opportunities -->
         <div class="chart-container">
-            <h2 class="text-lg font-semibold mb-2 text-purple-400">Arbitrage Opportunities</h2>
+            <h2 class="chart-title text-purple-400">Arbitrage Opportunities</h2>
             <canvas id="opportunitiesChart"></canvas>
+            <div class="placeholder-text">Waiting for live data...</div>
         </div>
         <!-- Placeholder for Chart 2: Profits Made -->
         <div class="chart-container">
-            <h2 class="text-lg font-semibold mb-2 text-green-400">Profits Made</h2>
+            <h2 class="chart-title text-green-400">Profits Made</h2>
             <canvas id="profitsChart"></canvas>
+            <div class="placeholder-text">Waiting for live data...</div>
         </div>
         <!-- Placeholder for Chart 3: Exchanges Monitored -->
         <div class="chart-container">
-            <h2 class="text-lg font-semibold mb-2 text-blue-400">Exchanges Monitored</h2>
+            <h2 class="chart-title text-blue-400">Exchanges Monitored</h2>
             <canvas id="exchangesChart"></canvas>
+            <div class="placeholder-text">Waiting for live data...</div>
         </div>
         <!-- Placeholder for Chart 4: Bot Activity -->
         <div class="chart-container">
-            <h2 class="text-lg font-semibold mb-2 text-yellow-400">Bot Activity</h2>
+            <h2 class="chart-title text-yellow-400">Bot Activity</h2>
             <canvas id="botActivityChart"></canvas>
+            <div class="placeholder-text">Waiting for live data...</div>
         </div>
         <!-- Placeholder for Chart 5: Gas Prices -->
         <div class="chart-container">
-            <h2 class="text-lg font-semibold mb-2 text-green-400">Gas Prices</h2>
+            <h2 class="chart-title text-green-400">Gas Prices</h2>
             <canvas id="gasPricesChart"></canvas>
+            <div class="placeholder-text">Waiting for live data...</div>
         </div>
         <!-- Placeholder for Chart 6: Trade Frequency -->
         <div class="chart-container">
-            <h2 class="text-lg font-semibold mb-2 text-red-400">Trade Frequency</h2>
+            <h2 class="chart-title text-red-400">Trade Frequency</h2>
             <canvas id="tradeFrequencyChart"></canvas>
+            <div class="placeholder-text">Waiting for live data...</div>
         </div>
         <!-- Placeholder for Chart 7: Spread Trends -->
         <div class="chart-container">
-            <h2 class="text-lg font-semibold mb-2 text-yellow-400">Spread Trends</h2>
+            <h2 class="chart-title text-yellow-400">Spread Trends</h2>
             <canvas id="spreadTrendsChart"></canvas>
+            <div class="placeholder-text">Waiting for live data...</div>
         </div>
         <!-- Placeholder for Chart 8: Exchange Latency -->
         <div class="chart-container">
-            <h2 class="text-lg font-semibold mb-2 text-lime-400">Exchange Latency</h2>
+            <h2 class="chart-title text-lime-400">Exchange Latency</h2>
             <canvas id="exchangeLatencyChart"></canvas>
+            <div class="placeholder-text">Waiting for live data...</div>
         </div>
         <!-- Placeholder for Chart 9: Profit Trends -->
         <div class="chart-container">
-            <h2 class="text-lg font-semibold mb-2 text-green-400">Profit Trends</h2>
+            <h2 class="chart-title text-green-400">Profit Trends</h2>
             <canvas id="profitTrendsChart"></canvas>
+            <div class="placeholder-text">Waiting for live data...</div>
         </div>
         <!-- Placeholder for Chart 10: Bot Status -->
         <div class="chart-container">
-            <h2 class="text-lg font-semibold mb-2 text-yellow-400">Bot Status</h2>
+            <h2 class="chart-title text-yellow-400">Bot Status</h2>
             <canvas id="botStatusChart"></canvas>
+            <div class="placeholder-text">Waiting for live data...</div>
         </div>
         <!-- Terminal Display -->
         <div class="lg:col-span-4">
@@ -78,7 +88,20 @@
 
     <script>
         // Connect to WebSocket server
-        const ws = new WebSocket('wss://crypto-beast-ws.onrender.com');
+        let ws;
+        try {
+            ws = new WebSocket('wss://crypto-beast-ws.onrender.com');
+        } catch (e) {
+            console.error('WebSocket initialization failed:', e);
+            const terminal = document.getElementById('terminal');
+            const span = document.createElement('span');
+            span.className = 'info';
+            span.textContent = `[${new Date().toISOString()}] WebSocket initialization failed: ${e.message}`;
+            terminal.appendChild(span);
+            terminal.appendChild(document.createElement('br'));
+            terminal.scrollTop = terminal.scrollHeight;
+            return;
+        }
 
         ws.onopen = () => {
             console.log('Connected to WebSocket server');
@@ -116,7 +139,7 @@
             const terminal = document.getElementById('terminal');
             const span = document.createElement('span');
             span.className = 'info';
-            span.textContent = `[${new Date().toISOString()}] WebSocket error: ${error.message}`;
+            span.textContent = `[${new Date().toISOString()}] WebSocket server not available. Please wait for deployment...`;
             terminal.appendChild(span);
             terminal.appendChild(document.createElement('br'));
             terminal.scrollTop = terminal.scrollHeight;
@@ -127,7 +150,7 @@
             const terminal = document.getElementById('terminal');
             const span = document.createElement('span');
             span.className = 'info';
-            span.textContent = `[${new Date().toISOString()}] Disconnected from WebSocket server`;
+            span.textContent = `[${new Date().toISOString()}] WebSocket server not available. Please wait for deployment...`;
             terminal.appendChild(span);
             terminal.appendChild(document.createElement('br'));
             terminal.scrollTop = terminal.scrollHeight;
