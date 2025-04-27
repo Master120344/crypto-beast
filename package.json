@@ -1,6 +1,7 @@
 {
   "name": "crypto-beast",
   "version": "1.0.0",
+  "description": "",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -8,19 +9,27 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-ignition": "^0.15.0",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@typechain/ethers-v6": "^0.5.0",
+    "@typechain/hardhat": "^9.0.0",
+    "hardhat": "^2.22.12",
+    "hardhat-gas-reporter": "^1.0.8",
+    "solidity-coverage": "^0.8.0",
+    "typechain": "^8.3.0"
+  },
   "dependencies": {
-    "@aave/core-v3": "^1.19.3",
-    "@openzeppelin/contracts": "^5.3.0",
-    "axios": "^1.9.0",
-    "chart.js": "^4.4.9",
+    "@noble/hashes": "^1.8.0",
+    "@noble/secp256k1": "^2.2.3",
+    "ccxt": "^4.4.77",
     "dotenv": "^16.5.0",
-    "ethers": "^6.13.5",
-    "kraken-api": "^1.0.2",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "tailwindcss": "^4.1.4",
-    "web3": "^4.16.0",
-    "ws": "^8.18.1"
+    "ethers": "^6.4.0",
+    "kraken-api": "^1.0.2"
   }
 }
